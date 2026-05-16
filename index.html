@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>דרישות שבועיות</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f0f2f5;
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+
+    header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 24px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 4px 12px rgba(102,126,234,0.4);
+    }
+
+    header h1 { font-size: 1.6rem; font-weight: 700; }
+    header span { font-size: 0.95rem; opacity: 0.85; }
+
+    .container { max-width: 860px; margin: 0 auto; padding: 28px 20px; }
+
+    /* Add task form */
+    .add-card {
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      margin-bottom: 32px;
+    }
+
+    .add-card h2 {
+      font-size: 1.05rem;
+      color: #667eea;
+      margin-bottom: 16px;
+      font-weight: 600;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .form-row input[type="text"] {
+      flex: 2;
+      min-width: 180px;
+      padding: 10px 14px;
+      border: 2px solid #e2e8f0;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      transition: border-color 0.2s;
+      outline: none;
+      font-family: inherit;
+    }
+
+    .form-row input[type="text"]:focus { border-color: #667eea; }
+
+    .form-row input[type="date"] {
+      flex: 1;
+      min-width: 150px;
+      padding: 10px 14px;
+      border: 2px solid #e2e8f0;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      outline: none;
+      cursor: pointer;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+
+    .form-row input[type="date"]:focus { border-color: #667eea; }
+
+    .btn-add {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 24px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      font-family: inherit;
+      white-space: nowrap;
+    }
+
+    .btn-add:hover { opacity: 0.9; }
+    .btn-add:active { transform: scale(0.97); }
+
+    /* Filters */
+    .filters {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .filters label { font-size: 0.9rem; color: #64748b; }
+
+    .filters select {
+      padding: 7px 12px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      outline: none;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .filter-btn {
+      padding: 7px 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      background: white;
+      font-size: 0.85rem;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s;
+      color: #64748b;
+    }
+
+    .filter-btn.active {
+      border-color: #667eea;
+      background: #667eea;
+      color: white;
+    }
+
+    /* Week groups */
+    .week-group { margin-bottom: 28px; }
+
+    .week-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .week-label {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      padding: 5px 16px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .week-label.current-week {
+      background: linear-gradient(135deg, #f093fb, #f5576c);
+      box-shadow: 0 2px 8px rgba(245,87,108,0.35);
+    }
+
+    .week-dates {
+      font-size: 0.82rem;
+      color: #94a3b8;
+    }
+
+    .week-count {
+      margin-right: auto;
+      font-size: 0.8rem;
+      color: #94a3b8;
+    }
+
+    /* Task items */
+    .task-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .task-item {
+      background: white;
+      border-radius: 12px;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+      transition: box-shadow 0.2s, transform 0.1s;
+      border-right: 4px solid #667eea;
+    }
+
+    .task-item:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.1); transform: translateY(-1px); }
+
+    .task-item.done {
+      border-right-color: #10b981;
+      opacity: 0.65;
+    }
+
+    .task-item.done .task-title { text-decoration: line-through; color: #94a3b8; }
+
+    .task-item.overdue { border-right-color: #f5576c; }
+
+    .task-checkbox {
+      width: 20px;
+      height: 20px;
+      accent-color: #667eea;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .task-title {
+      flex: 1;
+      font-size: 0.97rem;
+      font-weight: 500;
+    }
+
+    .task-date-tag {
+      font-size: 0.78rem;
+      color: #94a3b8;
+      white-space: nowrap;
+    }
+
+    .task-item.overdue .task-date-tag { color: #f5576c; font-weight: 600; }
+
+    .btn-delete {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #cbd5e1;
+      font-size: 1rem;
+      padding: 2px 6px;
+      border-radius: 6px;
+      transition: color 0.15s, background 0.15s;
+      line-height: 1;
+    }
+
+    .btn-delete:hover { color: #f5576c; background: #fff0f3; }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 48px 24px;
+      color: #94a3b8;
+    }
+
+    .empty-state .icon { font-size: 3rem; margin-bottom: 12px; }
+    .empty-state p { font-size: 1rem; }
+
+    /* Stats bar */
+    .stats {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .stat-chip {
+      background: white;
+      border-radius: 12px;
+      padding: 10px 18px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #64748b;
+    }
+
+    .stat-chip strong { color: #1a1a2e; font-size: 1.1rem; }
+
+    @media (max-width: 600px) {
+      header { flex-direction: column; gap: 6px; text-align: center; }
+      .form-row { flex-direction: column; }
+      .form-row input, .btn-add { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>📋 דרישות שבועיות</h1>
+  <span id="current-week-label"></span>
+</header>
+
+<div class="container">
+
+  <!-- Add Task -->
+  <div class="add-card">
+    <h2>+ הוסף משימה חדשה</h2>
+    <div class="form-row">
+      <input type="text" id="task-title" placeholder="שם המשימה..." />
+      <input type="date" id="task-date" />
+      <button class="btn-add" onclick="addTask()">הוסף</button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats" id="stats-bar"></div>
+
+  <!-- Filters -->
+  <div class="filters">
+    <button class="filter-btn active" onclick="setFilter('all', this)">הכל</button>
+    <button class="filter-btn" onclick="setFilter('pending', this)">פתוחות</button>
+    <button class="filter-btn" onclick="setFilter('done', this)">הושלמו</button>
+    <button class="filter-btn" onclick="setFilter('overdue', this)">באיחור</button>
+    <label style="margin-right: auto;">מיין לפי: <select id="sort-select" onchange="render()">
+      <option value="week">שבוע</option>
+      <option value="date">תאריך</option>
+    </select></label>
+  </div>
+
+  <!-- Task list grouped by week -->
+  <div id="tasks-container"></div>
+</div>
+
+<script>
+  const STORAGE_KEY = 'weekly_tasks_v1';
+  let tasks = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+  let activeFilter = 'all';
+
+  // --- Helpers ---
+
+  function getWeekNumber(dateStr) {
+    const d = new Date(dateStr);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
+    const week1 = new Date(d.getFullYear(), 0, 4);
+    return {
+      week: 1 + Math.round(((d - week1) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7),
+      year: d.getFullYear()
+    };
+  }
+
+  function getWeekKey(dateStr) {
+    const { week, year } = getWeekNumber(dateStr);
+    return `${year}-W${String(week).padStart(2, '0')}`;
+  }
+
+  function getWeekRange(year, week) {
+    const jan4 = new Date(year, 0, 4);
+    const dayOfWeek = (jan4.getDay() + 6) % 7;
+    const monday = new Date(jan4);
+    monday.setDate(jan4.getDate() - dayOfWeek + (week - 1) * 7);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    const fmt = d => d.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' });
+    return `${fmt(monday)} – ${fmt(sunday)}`;
+  }
+
+  function currentWeekKey() {
+    return getWeekKey(new Date().toISOString().slice(0, 10));
+  }
+
+  function isOverdue(task) {
+    if (task.done) return false;
+    return task.date < new Date().toISOString().slice(0, 10);
+  }
+
+  function save() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+  }
+
+  // --- Actions ---
+
+  function addTask() {
+    const titleEl = document.getElementById('task-title');
+    const dateEl = document.getElementById('task-date');
+    const title = titleEl.value.trim();
+    const date = dateEl.value || new Date().toISOString().slice(0, 10);
+    if (!title) { titleEl.focus(); return; }
+    tasks.push({ id: Date.now(), title, date, done: false });
+    save();
+    titleEl.value = '';
+    render();
+  }
+
+  function toggleDone(id) {
+    const t = tasks.find(t => t.id === id);
+    if (t) { t.done = !t.done; save(); render(); }
+  }
+
+  function deleteTask(id) {
+    tasks = tasks.filter(t => t.id !== id);
+    save();
+    render();
+  }
+
+  function setFilter(f, btn) {
+    activeFilter = f;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    render();
+  }
+
+  // --- Render ---
+
+  function render() {
+    renderStats();
+    renderTasks();
+  }
+
+  function renderStats() {
+    const total = tasks.length;
+    const done = tasks.filter(t => t.done).length;
+    const overdue = tasks.filter(isOverdue).length;
+    document.getElementById('stats-bar').innerHTML = `
+      <div class="stat-chip"><strong>${total}</strong> סה"כ משימות</div>
+      <div class="stat-chip"><strong>${done}</strong> הושלמו</div>
+      <div class="stat-chip"><strong>${total - done}</strong> פתוחות</div>
+      ${overdue ? `<div class="stat-chip" style="border-right:3px solid #f5576c"><strong>${overdue}</strong> באיחור</div>` : ''}
+    `;
+  }
+
+  function renderTasks() {
+    const container = document.getElementById('tasks-container');
+    const cwk = currentWeekKey();
+
+    // Update header
+    const { week, year } = getWeekNumber(new Date().toISOString().slice(0, 10));
+    document.getElementById('current-week-label').textContent = `שבוע ${week}, ${year}`;
+
+    // Filter
+    let filtered = tasks.filter(t => {
+      if (activeFilter === 'pending') return !t.done;
+      if (activeFilter === 'done') return t.done;
+      if (activeFilter === 'overdue') return isOverdue(t);
+      return true;
+    });
+
+    if (filtered.length === 0) {
+      container.innerHTML = `<div class="empty-state"><div class="icon">📭</div><p>אין משימות להצגה</p></div>`;
+      return;
+    }
+
+    // Sort
+    const sortBy = document.getElementById('sort-select').value;
+    filtered.sort((a, b) => a.date.localeCompare(b.date));
+
+    // Group by week
+    const groups = {};
+    filtered.forEach(t => {
+      const key = getWeekKey(t.date);
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(t);
+    });
+
+    const sortedKeys = Object.keys(groups).sort();
+
+    container.innerHTML = sortedKeys.map(wk => {
+      const [yr, wNum] = [parseInt(wk.split('-W')[0]), parseInt(wk.split('-W')[1])];
+      const isCurrentWeek = wk === cwk;
+      const range = getWeekRange(yr, wNum);
+
+      const taskItems = groups[wk].map(t => {
+        const overdue = isOverdue(t);
+        return `
+          <div class="task-item ${t.done ? 'done' : ''} ${overdue ? 'overdue' : ''}">
+            <input type="checkbox" class="task-checkbox" ${t.done ? 'checked' : ''}
+              onchange="toggleDone(${t.id})" />
+            <span class="task-title">${escapeHtml(t.title)}</span>
+            <span class="task-date-tag">${formatDate(t.date)}${overdue ? ' ⚠️' : ''}</span>
+            <button class="btn-delete" onclick="deleteTask(${t.id})" title="מחק">✕</button>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div class="week-group">
+          <div class="week-header">
+            <span class="week-label ${isCurrentWeek ? 'current-week' : ''}">
+              שבוע ${wNum}${isCurrentWeek ? ' ← השבוע' : ''}
+            </span>
+            <span class="week-dates">${range}</span>
+            <span class="week-count">${groups[wk].length} משימות</span>
+          </div>
+          <div class="task-list">${taskItems}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function formatDate(dateStr) {
+    return new Date(dateStr).toLocaleDateString('he-IL', {
+      weekday: 'short', day: 'numeric', month: 'numeric'
+    });
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // Enter key support
+  document.getElementById('task-title').addEventListener('keydown', e => {
+    if (e.key === 'Enter') addTask();
+  });
+
+  // Set today as default date
+  document.getElementById('task-date').value = new Date().toISOString().slice(0, 10);
+
+  render();
+</script>
+</body>
+</html>
