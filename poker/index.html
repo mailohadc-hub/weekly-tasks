@@ -321,6 +321,12 @@ body.four .card.s3{color:var(--green)}
 .stage small{color:var(--muted);font-size:.8rem;line-height:1.5}
 .avpick[aria-pressed="true"]{box-shadow:0 0 0 2px var(--gold),0 0 0 5px rgba(201,164,92,.22)}
 .lname{margin:12px 0 0}
+.gpick{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.gbtn{display:flex;align-items:center;gap:12px;padding:8px 14px 8px 8px;border-radius:14px;border:1px solid var(--line);background:rgba(255,255,255,.02);min-height:64px}
+.gbtn .gav{flex:0 0 48px;width:48px;height:48px;border-radius:50%;overflow:hidden;display:block;background:radial-gradient(circle at 50% 35%,var(--avbg,#2E3B36),#0E100F 78%)}
+.gbtn .gav svg,.gbtn .gav img{display:block;width:100%;height:100%}
+.gbtn b{font-family:"Frank Ruhl Libre",serif;font-weight:500;font-size:1.2rem}
+.gbtn[aria-pressed="true"]{border-color:var(--gold);background:linear-gradient(180deg,rgba(201,164,92,.13),rgba(201,164,92,.03))}
 .tourney{position:relative;overflow:hidden;display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:16px;
   background:radial-gradient(120% 140% at 85% 0%,#7B3FC4 0%,#43207A 38%,#1E0E3C 78%);border:1.5px solid #D9B45E;
   box-shadow:0 0 0 1px rgba(0,0,0,.5),0 14px 34px rgba(60,20,120,.45),inset 0 1px 0 rgba(255,255,255,.18)}
@@ -518,8 +524,8 @@ body.three .table{inset:0}
   </header>
   <div class="broke" id="broke" hidden>הארנק ריק. 500,000 צ'יפים חדשים יגיעו בעוד<b class="num refillIn">10:00</b>אפשר להשאיר את העמוד פתוח או לחזור אחר כך.</div>
   <section class="pick"><h3>הדמות שלך ליד השולחן</h3>
-    <div class="stage"><canvas id="avStage" width="264" height="264" aria-hidden="true"></canvas><div><b id="avName"></b><small id="avNote">בחרו דמות מהשורה. היא תשב במקום שלכם, וגם חברים יראו אותה.</small></div></div>
-    <div class="avrow" id="avRow" role="group" aria-label="בחירת דמות"></div>
+    <div class="stage"><canvas id="avStage" width="264" height="264" aria-hidden="true"></canvas><div><b id="avName"></b><small id="avNote">הדמות הזו תשב במקום שלך ליד השולחן, וגם חברים יראו אותה.</small></div></div>
+    <div class="gpick" id="avRow" role="group" aria-label="בן או בת"></div>
     <label class="namefield lname">השם שלך בשולחן<input id="lbName" maxlength="12" placeholder="איך לקרוא לך?" autocomplete="nickname" enterkeyhint="done"></label></section>
  </div>
  <div class="rcol">
@@ -842,6 +848,10 @@ function avatarSvg(ci, mood){
 const COLORS=['#F2C14E','#E98A6B','#7FC4E8','#A6D98A','#D6A3E8','#F0A0B8','#9FD8C8'];
 let usedNames=new Set();
 if(!Number.isInteger(S.avatar) || S.avatar<0 || S.avatar>=CHARS.length) S.avatar=6;
+/* you choose boy or girl; each maps to one look (the gentleman or Michelle) */
+const HERO={m:6, f:1};
+if(S.gender!=='m' && S.gender!=='f') S.gender=CHARS[S.avatar].f?'f':'m';
+S.avatar=HERO[S.gender];
 
 /* ---------- 3D characters (three.js r128) ----------
    Each look is modelled from simple solids, lit like a card-room portrait, rendered once per mood to
@@ -2314,15 +2324,14 @@ function renderLobby(){
   $('lbSub').textContent='שיא: '+fmt(Math.max(S.peak||0,S.bank));
   $('broke').hidden=!S.brokeAt;
   $('seg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed', b.dataset.m===m));
-  $('avRow').innerHTML=CHARS.map((c,i)=>'<button class="avpick"'+avAttrs(i,'')+' aria-pressed="'+(i===S.avatar)+'" aria-label="'+c.n+'">'+avatarHtml(i,'')+'</button>').join('');
-  $('avName').textContent=CHARS[S.avatar].n;
+  $('avRow').innerHTML=[['m','בן'],['f','בת']].map(([g,label])=>{ const i=HERO[g];
+    return '<button class="gbtn" data-g="'+g+'" aria-pressed="'+(S.gender===g)+'"><span class="gav"'+avAttrs(i,'')+'>'+avatarHtml(i,'')+'</span><b>'+label+'</b></button>'; }).join('');
+  $('avName').textContent=S.gender==='f'?'בת':'בן';
   if(document.activeElement!==$('lbName')) $('lbName').value=S.name||'';
   $('avStage').style.setProperty('--avbg',CHARS[S.avatar].bg);
-  $('avRow').querySelectorAll('.avpick').forEach(b=>b.onclick=()=>{ S.avatar=+b.dataset.av; save(); STAGE.smileUntil=Date.now()+1400;
+  $('avRow').querySelectorAll('.gbtn').forEach(b=>b.onclick=()=>{ S.gender=b.dataset.g; S.avatar=HERO[S.gender]; save(); STAGE.smileUntil=Date.now()+1400;
     if(room && NET==='client') room.presence({av:S.avatar}).catch(()=>{});
-    const x=$('avRow').scrollLeft; renderLobby(); $('avRow').scrollLeft=x; });
-  if(!avScrolled){ avScrolled=true; const sel=$('avRow').querySelector('[aria-pressed="true"]');
-    if(sel) requestAnimationFrame(()=>{ const r=$('avRow'); r.scrollLeft += sel.getBoundingClientRect().left - r.getBoundingClientRect().left - (r.clientWidth-sel.clientWidth)/2; }); }
+    renderLobby(); });
   $('tourney').innerHTML='<div class="thead"><span class="tbadge2">SPIN</span><div><b>טורנירי ספין · '+(m==='omaha'?'אומהה':'הולדם')+'</b>'
     +'<small>3 שחקנים · 500 צ\'יפים · בליינדים עולים כל 4 ידיים · המנצח לוקח את כל הפרס המוגרל</small></div></div>'
     +'<div class="tgrid">'+TTIERS.map(t=>{ const ok=S.bank>=t.buy && NET==='solo';
