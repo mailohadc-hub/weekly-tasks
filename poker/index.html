@@ -412,6 +412,7 @@ body.three .wood{padding:0;background:none;box-shadow:none;border-radius:0}
 body.three .felt{background:none;box-shadow:none;overflow:visible;border-radius:0}
 body.three .center{left:var(--cx,50%);top:var(--cy,47%)}
 body.three .seat:not(.me):not(.shown) .hand{visibility:hidden}
+body.three .board{visibility:hidden}   /* the board is dealt on the felt in 3D */
 body.three .card.slot{box-shadow:none}
 /* your own hand sits beside your name plate, so your character stays in view */
 body.three .seat.me .hand{position:absolute;left:calc(100% + 10px);bottom:-4px;margin:0;min-height:0}
@@ -1196,7 +1197,7 @@ function init3DTable(){
     const sc=new T.Scene(); sc.fog=new T.Fog(0x0B0909,15,32);
     sc.add(new T.HemisphereLight(0xFFF1DC,0x2A1810,0.5));
     const spot=new T.SpotLight(0xFFE7BF,1.6,40,0.72,0.6,1); spot.position.set(0,13,1.5); spot.target.position.set(0,1,0); sc.add(spot,spot.target);
-    spot.castShadow=true; spot.shadow.mapSize.set(1024,1024); spot.shadow.bias=-0.0005; spot.shadow.radius=3; spot.shadow.camera.near=6; spot.shadow.camera.far=18;
+    spot.castShadow=true; spot.shadow.mapSize.set(2048,2048); spot.shadow.bias=-0.0005; spot.shadow.radius=3; spot.shadow.camera.near=6; spot.shadow.camera.far=18;
     sc.environment=roomEnv(T,r);
     const key=new T.DirectionalLight(0xFFF6E8,0.5); key.position.set(-3,8,11); sc.add(key);
     const rim=new T.DirectionalLight(0xE6CF97,0.45); rim.position.set(4,6,-9); sc.add(rim);
@@ -1230,11 +1231,12 @@ function init3DTable(){
   }catch(e){ T3.failed=true; T3.ready=false; }
 }
 function feltTex(land,label){
-  return canvasTex(1024,544,(x,w,h)=>{
+  const t=canvasTex(2048,1088,(x,W,H)=>{
+    x.scale(2,2); const w=W/2, h=H/2;
     const g=x.createRadialGradient(w/2,h*0.46,30,w/2,h/2,w*0.62);
     g.addColorStop(0,'#1A7A56'); g.addColorStop(0.55,'#0F5239'); g.addColorStop(1,'#073022');
     x.fillStyle=g; x.fillRect(0,0,w,h);
-    for(let k=0;k<14000;k++){ x.fillStyle='rgba(0,0,0,'+(Math.random()*0.07)+')'; x.fillRect(Math.random()*w,Math.random()*h,1.6,1.6); }
+    for(let k=0;k<60000;k++){ x.fillStyle=(k&1?'rgba(0,0,0,':'rgba(255,255,255,')+(Math.random()*(k&1?0.07:0.025))+')'; x.fillRect(Math.random()*w,Math.random()*h,0.8,0.8); }
     const line=(m,a)=>{ const r=(h-2*m)/2; x.beginPath(); x.moveTo(m+r,m); x.lineTo(w-m-r,m); x.arc(w-m-r,h/2,r,-Math.PI/2,Math.PI/2); x.lineTo(m+r,h-m); x.arc(m+r,h/2,r,Math.PI/2,Math.PI*1.5); x.closePath(); x.strokeStyle='rgba(214,184,120,'+a+')'; x.stroke(); };
     x.lineWidth=3; line(64,0.38); x.lineWidth=1.5; line(76,0.16);
     x.save();
@@ -1243,6 +1245,7 @@ function feltTex(land,label){
     const txt=label.split('').join(String.fromCharCode(8202)); x.fillText(txt,0,0);
     x.restore();
   });
+  t.anisotropy=8; return t;
 }
 function buildTable(land){
   const T=THREE, g=new T.Group();
@@ -1509,7 +1512,8 @@ function sync3D(){
     const pv=T3.prev[i], st=ch.st, n=(p.hole||[]).length;
     if(!pv || pv.tk!==G.token){
       st.n=n; st.flyOut=false; st.gone=false; st.gest=null;
-      if(n && pv && !G.over){ st.fly=1; st.flyDir=-1; st.flyStart=now+0.08*view(i); } else st.fly=0;
+      if(n && pv && !G.over){ const o6=[0,1,2,3,4,5].filter(j=>!G.players[j].empty), ord=(o6.indexOf(i)-o6.indexOf(nextOcc(G.dealer))+o6.length)%o6.length;
+        st.fly=1; st.flyDir=-1; st.flyStart=now+0.15+ord*0.14; st.flyStride=o6.length*0.14; } else st.fly=0;
     } else {
       if(p.folded && !pv.folded){ gesture(ch,'fold',0.75); st.flyOut=true; st.flyDir=1; st.flyStart=now+0.25; }
       else if(p.bet>pv.bet && /קול|בט|רייז|אול/.test(p.last||'')) gesture(ch,p.allin?'allin':'bet',0.85);
@@ -1524,7 +1528,7 @@ function sync3D(){
       lost:!!(G.over && p.shown && !p.win && !p.folded && G.results)};
   });
   for(let i=G.players.length;i<T3.chars.length;i++) if(T3.chars[i]){ T3.scene.remove(T3.chars[i].root); T3.chars[i]=null; }
-  syncChips();
+  syncChips(); syncBoard(); syncShown();
 }
 const lerp=(a,b,k)=>a+(b-a)*k;
 function animChars(t,dt){
@@ -1565,19 +1569,22 @@ function animChars(t,dt){
       faceMood(ch.face, mood, t-st.blinkAt<0.12, [gy, i===G.acting?0.25:0.05]);
     }
     // cards: on the felt, lifted to peek, dealt in from the centre and thrown back on a fold
-    const n=st.n, centre=ch.root.worldToLocal(new THREE.Vector3(0,FELT_Y+0.02,0));
-    let fly=0;
-    if(st.flyDir<0){ fly=Math.max(0,1-Math.max(0,t-st.flyStart)/0.45); if(fly===0) st.flyDir=0; }
-    if(st.flyOut){ fly=Math.min(1,Math.max(0,t-st.flyStart)/0.45); if(fly>=1) st.gone=true; }
+    const n=st.n, centre=ch.root.worldToLocal(new THREE.Vector3(0,FELT_Y+0.02,0)), shoe=ch.root.worldToLocal(shoeSpot().add(new THREE.Vector3(0,0.34,0)));
+    const tabled=!!(T3.shown3&&T3.shown3[i]);
+    if(st.flyDir<0 && t>st.flyStart+(n-1)*(st.flyStride||0)+0.5) st.flyDir=0;
+    if(st.flyOut && t>st.flyStart+0.45) st.gone=true;
     ch.cards.forEach((m,j)=>{
-      const vis = j<n && !st.gone && !(p.folded && !st.flyOut);
+      let fly=0, from=centre;
+      if(st.flyDir<0){ const t0=st.flyStart+j*(st.flyStride||0); fly=Math.max(0,1-Math.max(0,t-t0)/0.42); from=shoe; if(t<t0){ m.visible=false; return; } }
+      if(st.flyOut) fly=Math.min(1,Math.max(0,t-st.flyStart)/0.45);
+      const vis = j<n && !st.gone && !tabled && !(p.folded && !st.flyOut);
       m.visible=vis; if(!vis) return;
       const off=(j-(n-1)/2);
       const tx=off*0.1, ty=FELT_Y+0.01+j*0.004, tz=1.35, trz=0, try_=off*0.12, trx=0;
       const hx=off*0.085, hy2=1.95, hz=0.66, hrx=1.15, hrz=-off*0.12;
       const a=c.card;
       let x=lerp(tx,hx,a), y=lerp(ty,hy2,a), z=lerp(tz,hz,a);
-      if(fly>0){ const e=fly*fly*(3-2*fly); x=lerp(x,centre.x+off*0.05,e); y=lerp(y,centre.y+0.3*Math.sin(Math.PI*e),e); z=lerp(z,centre.z,e); }
+      if(fly>0){ const e=fly*fly*(3-2*fly); x=lerp(x,from.x+off*0.05,e); y=lerp(y,from.y+0.3*Math.sin(Math.PI*e),e); z=lerp(z,from.z,e); }
       m.position.set(x,y,z); m.rotation.set(lerp(trx,hrx,a),lerp(try_,0,a),lerp(trz,hrz,a));
     });
   });
@@ -1587,7 +1594,7 @@ function layout3D(){
   const el=$('table'), w=el.clientWidth, h=el.clientHeight; if(w<10||h<10) return;
   if(T3.lastW===w && T3.lastH===h && T3.P) return; T3.lastW=w; T3.lastH=h;
   const land=w/h>1.1;
-  if(land!==T3.land){ T3.land=land; if(T3.tableG) T3.scene.remove(T3.tableG); T3.tableG=buildTable(land); T3.scene.add(T3.tableG); placeSeats(); T3.label=''; }
+  if(land!==T3.land){ T3.land=land; if(T3.tableG) T3.scene.remove(T3.tableG); T3.tableG=buildTable(land); T3.scene.add(T3.tableG); if(T3.shoeG) T3.scene.remove(T3.shoeG); T3.shoeG=buildShoe(); T3.scene.add(T3.shoeG); placeSeats(); T3.label=''; }
   T3.r.setSize(w,h,false);
   const cam=T3.cam, hero=T3.seatPos[0], T=THREE; cam.aspect=w/h;
   cam.position.set(0, land?9.6:13.5, hero.z+(land?4.4:3.4));
@@ -1692,21 +1699,142 @@ function putGroup(rec,key,g,at){
   if(rec[key]){ T3.scene.remove(rec[key]); rec[key]=null; }
   if(g){ g.position.copy(at); T3.scene.add(g); rec[key]=g; }
 }
+
+/* ---------- real cards on the table ----------
+   Card faces are drawn once per card at print resolution (the same design as the HTML cards: double-ended
+   indices, pip layouts, framed courts). The board is dealt from the dealer's shoe, face down, and turned
+   over on the felt; at showdown each player's cards turn over in front of them. */
+const SUIT_PATH=[
+  'M50 4C44 24 8 40 9 64c1 18 25 23 37 9-1 10-6 17-14 23h36c-8-6-13-13-14-23 12 14 36 9 37-9C92 40 56 24 50 4z',
+  'M50 92C22 70 4 52 7 30 10 12 34 5 50 27 66 5 90 12 93 30 96 52 78 70 50 92z',
+  'M50 3Q68 28 86 50 68 72 50 97 32 72 14 50 32 28 50 3z',
+  null];
+function suitPath(s){
+  if(SUIT_PATH[s]) return new Path2D(SUIT_PATH[s]);
+  const p=new Path2D(); [[50,27,20],[26,57,20],[74,57,20],[50,52,10]].forEach(([x,y,r])=>{ p.moveTo(x+r,y); p.arc(x,y,r,0,Math.PI*2); });
+  p.addPath(new Path2D('M46 55c0 20-6 32-15 41h38c-9-9-15-21-15-41z')); return p;
+}
+function suitInk(s){ return S.four ? ['#16161A','#C0182F','#1F4E9C','#1C7A43'][s] : (s===1||s===2 ? '#C0182F' : '#16161A'); }
+const CTEX=new Map();
+function cardTex(c){
+  const key=c+'|'+(S.four?4:2); if(CTEX.has(key)) return CTEX.get(key);
+  const t=canvasTex(360,504,(x,w,h)=>{
+    const r=rOf(c), s=sOf(c), ink=suitInk(s), lab=String(RN[r]||r), sp=suitPath(s);
+    const rr=(x0,y0,ww,hh,rad)=>{ x.beginPath(); x.moveTo(x0+rad,y0); x.arcTo(x0+ww,y0,x0+ww,y0+hh,rad); x.arcTo(x0+ww,y0+hh,x0,y0+hh,rad); x.arcTo(x0,y0+hh,x0,y0,rad); x.arcTo(x0,y0,x0+ww,y0,rad); x.closePath(); };
+    const g=x.createLinearGradient(0,0,w,h); g.addColorStop(0,'#FFFFFB'); g.addColorStop(0.5,'#FBF7EE'); g.addColorStop(1,'#EFE6D2');
+    x.fillStyle=g; x.fillRect(0,0,w,h);
+    const pip=(cx,cy,size,flip)=>{ x.save(); x.translate(cx,cy); if(flip) x.rotate(Math.PI); x.scale(size/100,size/100); x.translate(-50,-50); x.fillStyle=ink; x.fill(sp); x.restore(); };
+    const index=()=>{ x.fillStyle=ink; x.font='700 100px "Cormorant Garamond", Georgia, serif'; x.textAlign='center'; x.textBaseline='alphabetic';
+      x.save(); x.translate(50,94); if(lab==='10') x.scale(0.78,1); x.fillText(lab,0,0); x.restore(); pip(50,128,50,false); };
+    index(); x.save(); x.translate(w,h); x.rotate(Math.PI); index(); x.restore();
+    if(r===14) pip(w/2,h/2,150,false);
+    else if(r>10){
+      const fx=96, fy=106, fw=w-192, fh=h-212;
+      x.fillStyle='#F6E7BE'; rr(fx,fy,fw,fh,6); x.fill();
+      x.save(); rr(fx,fy,fw,fh,6); x.clip(); x.strokeStyle='rgba(201,164,92,.35)'; x.lineWidth=2;
+      for(let k=-fh;k<fw+fh;k+=12){ x.beginPath(); x.moveTo(fx+k,fy); x.lineTo(fx+k+fh,fy+fh); x.stroke(); }
+      x.strokeStyle='rgba(22,22,26,.35)'; x.beginPath(); x.moveTo(fx,fy); x.lineTo(fx+fw,fy+fh); x.stroke(); x.restore();
+      x.strokeStyle=ink; x.lineWidth=3; rr(fx,fy,fw,fh,6); x.stroke(); x.strokeStyle='#C9A45C'; x.lineWidth=2; rr(fx+6,fy+6,fw-12,fh-12,4); x.stroke();
+      x.fillStyle=ink; x.font='700 120px "Cormorant Garamond", Georgia, serif'; x.textAlign='center';
+      x.fillText(lab,fx+62,fy+124); x.save(); x.translate(fx+fw-62,fy+fh-124); x.rotate(Math.PI); x.fillText(lab,0,0); x.restore();
+      pip(fx+fw-48,fy+52,52,false); pip(fx+48,fy+fh-52,52,true);
+    } else {
+      const fx=w*0.34, fy=h*0.2, fw=w*0.32, fh=h*0.6;
+      PIPS[r].forEach(([px,py])=>pip(fx+px*fw, fy+py*fh, 74, py>0.5));
+    }
+    x.strokeStyle='rgba(70,50,20,.25)'; x.lineWidth=3; rr(1.5,1.5,w-3,h-3,22); x.stroke();
+  });
+  t.anisotropy=8; CTEX.set(key,t); return t;
+}
+/* a card is two faces on a rounded outline, 5:7 like a real deck */
+function cardShapeGeo(W,H,r){ return geo('cs'+[W,H,r],()=>{
+  const s=new THREE.Shape(), a=W/2, b=H/2;
+  s.moveTo(-a+r,-b); s.lineTo(a-r,-b); s.quadraticCurveTo(a,-b,a,-b+r); s.lineTo(a,b-r); s.quadraticCurveTo(a,b,a-r,b);
+  s.lineTo(-a+r,b); s.quadraticCurveTo(-a,b,-a,b-r); s.lineTo(-a,-b+r); s.quadraticCurveTo(-a,-b,-a+r,-b);
+  const g=new THREE.ShapeGeometry(s,6), p=g.attributes.position, uv=g.attributes.uv;
+  for(let i=0;i<p.count;i++) uv.setXY(i,(p.getX(i)+a)/W,(p.getY(i)+b)/H);
+  return g; }); }
+function makeCard3D(W){
+  const H=W*1.4, g=new THREE.Group();
+  const face=new THREE.Mesh(cardShapeGeo(W,H,W*0.07),new THREE.MeshStandardMaterial({color:0xffffff,roughness:0.42}));
+  const back=new THREE.Mesh(cardShapeGeo(W,H,W*0.07),T3.cardMats[2]); back.rotation.y=Math.PI; back.position.z=-0.004;
+  face.castShadow=back.castShadow=true; face.receiveShadow=true; g.add(face,back); g.userData.face=face;
+  return g;
+}
+function setFace(card,c){ const m=card.userData.face.material; const t=cardTex(c); if(m.map!==t){ m.map=t; m.needsUpdate=true; } }
+const faceUp=-Math.PI/2, faceDown=Math.PI/2;       // rotation.x of a card lying on the felt
+function shoeSpot(){ return T3.land ? feltAt(-1.75,-(HW-0.55)) : feltAt(-(HW-0.55),-1.55); }
+function boardW(){ return T3.land?0.74:0.6; }
+function boardSlot(i){ const W=boardW(), gap=W*0.12, x0=-(5*W+4*gap)/2+W/2; return feltAt(x0+i*(W+gap), T3.land?0.12:0.05); }
+/* the dealer's shoe and discard rack, at the far rail */
+function buildShoe(){
+  const g=new THREE.Group(), sp=shoeSpot();
+  const wood=mat('#2A1A10',0.45), dark=mat('#0E0E10',0.3,0.2), brass=mat('#C9A45C',0.3,1);
+  mesh(g,rbox(0.62,0.3,0.9,0.05),wood,[0,0.15,0]); mesh(g,box(0.5,0.02,0.7),dark,[0,0.305,0.02]);
+  mesh(g,box(0.46,0.18,0.02),mat('#6E1322',0.5),[0,0.2,0.46],null,[-0.35,0,0]);            // the top card, peeking out
+  mesh(g,box(0.64,0.03,0.04),brass,[0,0.3,0.46]);
+  const rack=new THREE.Group(); rack.position.set(0.95,0,0);
+  mesh(rack,rbox(0.5,0.12,0.72,0.03),wood,[0,0.06,0]);
+  for(let k=0;k<5;k++) mesh(rack,box(0.4,0.006,0.56),mat(k%2?'#F3EEE2':'#6E1322',0.5),[0,0.125+k*0.006,0],null,[0,(k-2)*0.05,0]);
+  g.add(rack);
+  g.position.copy(sp); g.rotation.y=T3.land?0.25:Math.PI/2+0.25;
+  g.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; } });
+  return g;
+}
+/* the board: new cards come out of the shoe face down and turn over in their slot; a new hand sweeps them away */
+function syncBoard(){
+  if(!T3.board3) T3.board3=[];
+  if(T3.boardTk!==G.token){
+    T3.board3.forEach(cd=>{ const from=cd.position.clone(), to=shoeSpot().add(new THREE.Vector3(0.95,0.14,0));
+      T3.tweens.push({m:cd, a:from, b:to, t0:T3.clock, dur:0.5, h:0.25, spin:0, ra:cd.rotation.x, rb:faceDown, done:()=>T3.scene.remove(cd), keep:true}); });
+    T3.board3=[]; T3.boardTk=G.token;
+  }
+  for(let i=T3.board3.length;i<G.board.length;i++){
+    const cd=makeCard3D(boardW()); setFace(cd,G.board[i]); cd.rotation.set(faceDown,0,0); cd.visible=false; T3.scene.add(cd);
+    const k=i-T3.board3.length, delay=(G.board.length-T3.board3.length>1)?k*0.28:0;
+    T3.tweens.push({m:cd, a:shoeSpot().add(new THREE.Vector3(0,0.34,0)), b:boardSlot(i).add(new THREE.Vector3(0,0.006,0)), t0:T3.clock+delay, dur:0.55, h:0.35,
+      spin:0, ra:faceDown, rb:faceUp, keep:true});
+    T3.board3.push(cd);
+  }
+  const hl=new Set(G.over&&G.results&&G.results.hl?G.results.hl:[]), dim=G.over&&G.results;
+  T3.board3.forEach((cd,i)=>{ const m=cd.userData.face.material; const want=dim&&!hl.has(G.board[i])?0.45:1;
+    if(m.color.r!==want){ m.color.setScalar(want); } cd.position.y=boardSlot(i).y+0.006+(dim&&hl.has(G.board[i])?0.02:0); });
+}
+
+/* showdown: a player's cards are tabled face up in front of them, turned toward the rail so everyone can read them */
+function syncShown(){
+  if(!T3.shown3) T3.shown3=[];
+  G.players.forEach((p,i)=>{
+    const cur=T3.shown3[i], want=!p.empty && p.shown && !p.folded && (p.hole||[]).length && p.hole[0]!=null;
+    if(cur && (!want || cur.tk!==G.token)){ cur.cards.forEach(c=>T3.scene.remove(c)); T3.shown3[i]=null; }
+    if(!want || T3.shown3[i]) return;
+    const s=T3.seatPos[view(i)], n=p.hole.length, W=n>2?0.36:0.44, gap=W*0.08, k=(T3.land&&s.nz<-0.5)?0.62:0.6;
+    const cx=s.ex-s.nx*k, cz=s.ez-s.nz*k-(s.nz>0.5?0.1:0);
+    const cards=p.hole.map((c,j)=>{ const cd=makeCard3D(W); setFace(cd,c); cd.rotation.set(faceDown,0,0); cd.visible=false; T3.scene.add(cd);
+      const at=feltAt(cx+(j-(n-1)/2)*(W+gap), cz).add(new THREE.Vector3(0,0.008+j*0.002,0));
+      T3.tweens.push({m:cd, a:at.clone().add(new THREE.Vector3(0,0.05,0)), b:at, t0:T3.clock+j*0.09, dur:0.45, h:0.22, spin:0, ra:faceDown, rb:faceUp, keep:true});
+      return cd; });
+    T3.shown3[i]={tk:G.token, cards};
+  });
+}
+
 function later3D(sec,fn){ T3.jobs.push({at:T3.clock+sec, fn}); }
-function flyChips(amount,from,to,delay,done){
+function flyChips(amount,from,to,delay,done,slide){
   const ks=chipBreak(amount,7); if(!ks.length){ if(done) later3D(delay||0,done); return; }
   const still=matchMedia('(prefers-reduced-motion: reduce)').matches;
   ks.forEach((k,j)=>{ const m=new THREE.Mesh(chipGeo(),chipMat(k)); m.castShadow=true; m.visible=false; T3.scene.add(m);
     const jit=new THREE.Vector3((Math.random()-0.5)*0.12,j*CHIP_H,(Math.random()-0.5)*0.12);
-    T3.tweens.push({m, a:from.clone().add(new THREE.Vector3(0,CHIP_H*(j+1),0)), b:to.clone().add(jit), t0:T3.clock+(delay||0)+j*0.045,
-      dur:still?0.01:0.42, h:0.32, spin:(Math.random()-0.5)*14, done:j===ks.length-1?done:null}); });
+    T3.tweens.push({m, a:from.clone().add(new THREE.Vector3(0,CHIP_H*(j+1),0)), b:to.clone().add(jit), t0:T3.clock+(delay||0)+j*(slide?0.08:0.06),
+      dur:still?0.01:slide?1.05:0.5, h:slide?0.05:0.28, spin:(Math.random()-0.5)*14, done:j===ks.length-1?done:null}); });
 }
 function runTweens(t){
   for(let i=T3.jobs.length-1;i>=0;i--){ const j=T3.jobs[i]; if(t>=j.at){ T3.jobs.splice(i,1); j.fn(); } }
   for(let i=T3.tweens.length-1;i>=0;i--){ const w=T3.tweens[i], u=(t-w.t0)/w.dur;
     if(u<0) continue; w.m.visible=true;
-    if(u>=1){ T3.scene.remove(w.m); T3.tweens.splice(i,1); if(w.done) w.done(); continue; }
-    const e=u*u*(3-2*u); w.m.position.lerpVectors(w.a,w.b,e); w.m.position.y+=w.h*4*u*(1-u); w.m.rotation.set(w.spin*u*0.3,w.spin*u,0); }
+    if(u>=1){ if(w.keep){ w.m.position.copy(w.b); if(w.rb!=null) w.m.rotation.set(w.rb,0,0); } else T3.scene.remove(w.m);
+      T3.tweens.splice(i,1); if(w.done) w.done(); continue; }
+    const e=u*u*(3-2*u); w.m.position.lerpVectors(w.a,w.b,e); w.m.position.y+=w.h*4*u*(1-u);
+    if(w.ra!=null) w.m.rotation.set(lerp(w.ra,w.rb,Math.min(1,Math.max(0,(u-0.35)/0.6))),0,0); else w.m.rotation.set(w.spin*u*0.3,w.spin*u,0); }
 }
 /* read stacks, bets and the pot after every change and move chips to match */
 function syncChips(){
@@ -1716,27 +1844,29 @@ function syncChips(){
     if(p.empty){ putGroup(rec,'sg',null); putGroup(rec,'bg',null); T3.chipRec[i]={}; return; }
     const s=T3.seatPos[view(i)], home=stackSpot(s), bet=betSpot(s), newHand=rec.tk!==G.token, prevBet=newHand?0:(rec.bet||0);
     if(p.win && !rec.won){                                              // the pot slides over, then the stack grows
-      rec.won=true; flyChips(p.win,pot,home,0.55,()=>{ putGroup(rec,'sg',chipStack(p.stack,4,10),home); rec.stack=p.stack; });
+      rec.won=true; flyChips(p.win,pot,home,0.7,()=>{ putGroup(rec,'sg',chipStack(p.stack,4,10),home); rec.stack=p.stack; },true);
     } else if(rec.stack!==p.stack && !(rec.won && p.win)){ putGroup(rec,'sg',chipStack(p.stack,4,10),home); rec.stack=p.stack; }
     if(!p.win) rec.won=false;
     if(p.bet>prevBet){
       const nb=p.bet; flyChips(p.bet-prevBet,home,bet,0,()=>{ if(rec.bet===nb) putGroup(rec,'bg',chipStack(nb,3,8),bet); });
     } else if(p.bet<prevBet){
       putGroup(rec,'bg',p.bet?chipStack(p.bet,3,8):null,bet);
-      if(!p.bet) flyChips(prevBet,bet,pot,0.05,null);                 // swept into the pot
+      if(!p.bet) flyChips(prevBet,bet,pot,0.15+0.12*view(i),null,true);                 // swept into the pot
     } else if(newHand) putGroup(rec,'bg',null,bet);
     rec.bet=p.bet; rec.tk=G.token;
   });
   const potNow=G.pot;
   if(potNow!==T3.potAmt){
     const grow=potNow>(T3.potAmt||0); T3.potAmt=potNow;
-    later3D(grow?0.5:0.55,()=>{ if(T3.potAmt===potNow) putGroup(T3,'potG',potNow?chipStack(potNow,6,10):null,pot); });
+    later3D(grow?1.5:0.7,()=>{ if(T3.potAmt===potNow) putGroup(T3,'potG',potNow?chipStack(potNow,6,10):null,pot); });
   }
 }
 function resetChips(){
   (T3.chipRec||[]).forEach(r=>{ if(r){ putGroup(r,'sg',null); putGroup(r,'bg',null); } });
   T3.chipRec=[]; if(T3.potG){ T3.scene.remove(T3.potG); T3.potG=null; } T3.potAmt=-1;
   (T3.tweens||[]).forEach(w=>T3.scene.remove(w.m)); T3.tweens=[]; T3.jobs=[];
+  (T3.board3||[]).forEach(c=>T3.scene.remove(c)); T3.board3=[]; T3.boardTk=null;
+  (T3.shown3||[]).forEach(r=>{ if(r) r.cards.forEach(c=>T3.scene.remove(c)); }); T3.shown3=[];
 }
 
 /* 2D: chips fly between the plates, the betting line and the pot as small tokens */
@@ -1812,7 +1942,7 @@ function pickChar(){
 function newBot(vary){
   const ch=pickChar();
   return {name:ch.n, av:ch.av, stack:vary ? Math.round(BUYIN()*(0.5+rnd()*1.2)/BB)*BB : BUYIN(), color:COLORS[Math.floor(rnd()*COLORS.length)],
-    style:{tight:0.9+rnd()*0.3, aggr:0.12+rnd()*0.45, bluff:0.02+rnd()*0.07}};
+    style:{tight:0.9+rnd()*0.3, aggr:0.12+rnd()*0.45, bluff:0.02+rnd()*0.07, speed:0.8+rnd()*0.5}};
 }
 function blank(p){ Object.assign(p,{hole:[],bet:0,total:0,folded:false,allin:false,acted:false,canRaise:true,last:'',shown:false,win:0,winTxt:''});
   if(p.empty) p.folded=true;           // an empty chair never holds cards or acts
@@ -1883,7 +2013,7 @@ function doAction(i,type,to,why){
   logl(p.name+': '+p.last);
   G.turn=(i+1)%6;
   render();
-  later(step, 280);
+  later(step, 450);
 }
 function roundDone(){
   const can=G.players.filter(p=>!p.folded&&!p.allin);
@@ -1952,10 +2082,11 @@ function startHand(){
   const hc=G.mode==='omaha'?4:2;
   for(let k=0;k<hc;k++) for(let j=1;j<=6;j++){ const q=G.players[(G.dealer+j)%6]; if(!q.empty) q.hole.push(G.deck.pop()); }
   logl('יד חדשה. הכפתור אצל '+G.players[G.dealer].name);
+  G.dealMs=hc*G.players.filter(q=>!q.empty).length*140;       // cards go out one at a time, around the table
   S.hands++; save();
   render();
   G.turn=(bbI+1)%6;
-  later(step, 900);
+  later(step, 900+G.dealMs);
 }
 function step(){
   if(G.over) return;
@@ -1974,9 +2105,9 @@ function step(){
     return;
   }
   G.deadline=0;
-  const think=650+rnd()*700;
+  const d=botDecide(ai), think=thinkFor(ai,d);
   render(think);
-  later(()=>botAct(ai), think);
+  later(()=>{ if(G.acting===ai) doAction(ai,d.t,d.to); }, think);
 }
 function endRound(){
   collect();
@@ -1985,15 +2116,15 @@ function endRound(){
   if(G.street==='river') return showdown();
   if(can<=1){
     live().forEach(p=>p.shown=true); render();
-    const run=()=>{ dealStreet(); render(); if(G.street==='river') later(showdown,1100); else later(run,1100); };
-    return later(run,700);
+    const run=()=>{ dealStreet(); render(); if(G.street==='river') later(showdown,1800); else later(run,1900); };
+    return later(run,1100);
   }
   render();
   later(()=>{
     dealStreet();
     G.players.forEach(p=>{ p.acted=false; p.canRaise=true; if(!p.folded&&!p.allin) p.last=''; });
-    G.turn=(G.dealer+1)%6; render(); later(step,500);
-  },450);
+    G.turn=(G.dealer+1)%6; render(); later(step, G.street==='flop'?1500:1000);
+  },1100);
 }
 function dealStreet(){
   if(G.board.length>=5) return;
@@ -2013,7 +2144,15 @@ function uncontested(w){
   finish();
 }
 function showdown(){
-  const L=live(); L.forEach(p=>{ p.shown=true; p.res=best(p.hole,G.board); });
+  const L=live(); L.forEach(p=>{ p.res=best(p.hole,G.board); });
+  const from=p=>(G.players.indexOf(p)-G.dealer-1+6)%6, seq=L.slice().sort((a,b)=>from(a)-from(b));
+  G.acting=-1; let k=0;
+  const next=()=>{ while(k<seq.length && seq[k].shown) k++;
+    if(k<seq.length){ seq[k++].shown=true; render(); later(next,850); } else later(award,700); };
+  next();
+}
+function award(){
+  const L=live(); L.forEach(p=>{ p.shown=true; });
   const levels=[...new Set(G.players.map(p=>p.total).filter(t=>t>0))].sort((a,b)=>a-b);
   const pots=[]; let prev=0;
   for(const lv of levels){
@@ -2050,31 +2189,53 @@ function finish(){
   if(TR.on){ render(); tourneyCheck(); return; }
   S.inPlay=G.players[0].stack; notePeak(); save();
   render();
-  if(NET==='host' || (S.auto && G.players[0].stack>0)) later(startHand, G.results?5200:3200);
+  if(NET==='host' || (S.auto && G.players[0].stack>0)) later(startHand, G.results?6500:3800);
 }
 
 /* ---------- bots ---------- */
-function botAct(i){
-  if(G.acting!==i) return;
+/* how long a person takes: quick folds and checks, longer calls and raises, much longer for a big
+   decision, the river a little slower, and now and then a real think. Each bot has their own pace. */
+function thinkFor(i,d){
+  const p=G.players[i], L=legal(p), r=rnd();
+  let ms = d.t==='fold' ? (G.street==='preflop' && L.toCall<=BB ? 700 : 1100)+r*1400
+         : d.t==='check' ? 900+r*1500
+         : d.t==='call' ? 1500+r*2200 : 2000+r*2600;
+  const put=d.t==='raise' ? (d.to||0)-p.bet : d.t==='call' ? L.callAmt : 0;
+  if(put >= 0.4*(p.stack+0.01)) ms += 1500+rnd()*3000;
+  if(G.street==='river') ms += 500;
+  if(rnd()<0.06) ms += 2500+rnd()*3500;
+  return Math.min(9000, ms*((p.style&&p.style.speed)||1));
+}
+/* people bet round amounts: 300 not 275, 1,500 not 1,340 */
+function niceAmt(x){ if(x<=0) return 0; const q=Math.pow(10,Math.floor(Math.log10(x))), stepv=(x/q<3)?q/2:q; return Math.max(stepv,Math.round(x/stepv)*stepv); }
+function niceTo(to,L){ let v=niceAmt(to); if(v>=L.maxAll*0.6) v=L.maxTo; return Math.max(L.minTo,Math.min(L.maxTo,v)); }
+const pickOf=a=>a[Math.floor(rnd()*a.length)];
+function botDecide(i){
   const p=G.players[i], L=legal(p), st=p.style;
   const opps=live().length-1, pre=G.street==='preflop';
   const eq=equity(i, pre ? Math.min(opps,2) : opps);
   const pot=G.pot+sumBets(), fair=1/((pre?Math.min(opps,2):opps)+1), r=rnd();
-  const unit=Math.max(5,Math.round(SB/2));
-  const rnd5=x=>Math.round(x/unit)*unit;
-  const raiseTo=f=>G.curBet + Math.max(G.minRaise, rnd5((pot+L.toCall)*f));
+  const limpers=G.players.filter(q=>!q.folded && q.bet===BB).length-1;
+  // sizes a person would pick: open 2.5–3 big blinds (+1 per limper), re-raise about 3x, bet a third to a pot
+  const openTo=()=>BB*pickOf([2.5,3,3])+Math.max(0,limpers)*BB;
+  const raiseTo=()=> pre ? (G.curBet<=BB ? openTo() : G.curBet*pickOf([2.5,3,3])) : G.curBet*pickOf([2.5,3]);
+  const betTo=strong=>pot*(strong?pickOf([0.5,0.66,0.75,1]):pickOf([0.33,0.5]));
   if(L.toCall===0){
     const strong = eq > Math.min(0.82, fair*1.65*st.tight);
-    if(L.canRaise && ((strong && r<0.5+st.aggr) || r<st.bluff)) return doAction(i,'raise', G.curBet===0 ? Math.max(BB, rnd5(pot*(0.45+rnd()*0.35))) : raiseTo(0.8));
-    return doAction(i,'check');
+    if(L.canRaise && ((strong && r<0.5+st.aggr) || r<st.bluff)) return {t:'raise', to:niceTo(G.curBet===0 ? Math.max(BB,betTo(strong)) : raiseTo(), L)};
+    return {t:'check'};
   }
   const odds=L.toCall/(pot+L.toCall);
   const raiseTh = (pre ? 0.5 : Math.max(0.58, fair*2)) * st.tight;
-  if(L.canRaise && eq>raiseTh && r<0.35+st.aggr) return doAction(i,'raise', raiseTo(0.65+rnd()*0.45));
+  if(L.canRaise && eq>raiseTh && r<0.35+st.aggr) return {t:'raise', to:niceTo(raiseTo(),L)};
   const need = odds*st.tight*(L.callAmt>=p.stack?1.25:1.02);
-  if(eq>=need) return doAction(i,'call');
-  if(L.canRaise && !pre && r<st.bluff*0.5) return doAction(i,'raise', raiseTo(0.8));
-  return doAction(i,'fold');
+  if(eq>=need) return {t:'call'};
+  if(L.canRaise && !pre && r<st.bluff*0.5) return {t:'raise', to:niceTo(raiseTo(),L)};
+  return {t:'fold'};
+}
+function botAct(i){
+  if(G.acting!==i) return;
+  const d=botDecide(i); doAction(i,d.t,d.to);
 }
 
 /* ---------- rendering ---------- */
@@ -2121,7 +2282,8 @@ function render(think){
   $('pot').innerHTML = potNow ? '<span class="chip" style="--c:'+chipColor(potNow)+'"></span><span>קופה <b class="num">'+fmt(potNow)+'</b></span>' : '';
 
   const hl=new Set(G.results&&G.results.hl?G.results.hl:[]), showHl=G.over&&G.results;
-  $('board').innerHTML = G.board.map((c,i)=>cardEl(c,(i>=A.board?'deal ':'')+(showHl?(hl.has(c)?'hl':'dim'):''),true)).join('')
+  $('board').innerHTML = G.board.map((c,i)=>{ const h=cardEl(c,(i>=A.board?'deal ':'')+(showHl?(hl.has(c)?'hl':'dim'):''),true);
+      return i>=A.board ? h.replace('<div class="card','<div style="animation-delay:'+((i-A.board)*0.28).toFixed(2)+'s" class="card') : h; }).join('')
     + Array(Math.max(0,5-G.board.length)).fill('<div class="card slot"></div>').join('');
   A.board=G.board.length;
 
@@ -2135,7 +2297,10 @@ function render(think){
       cards=p.hole.map((c,k)=>{
         const face = c!=null && (i===ME || p.shown);
         const cl=(k>=A.seat[i]?'deal ':'')+(showHl&&face&&p.win&&hl.has(c)?'hl':'');
-        return face?cardEl(c,cl,i===ME):cardEl(null,cl);
+        const html=face?cardEl(c,cl,i===ME):cardEl(null,cl);
+        if(k<A.seat[i] || G.over) return html;
+        const occ6=[0,1,2,3,4,5].filter(j=>!G.players[j].empty), ord=(occ6.indexOf(i)-occ6.indexOf(nextOcc(G.dealer))+occ6.length)%occ6.length;
+        return html.replace('<div class="card','<div style="animation-delay:'+((k*occ6.length+ord)*0.14).toFixed(2)+'s" class="card');
       }).join('');
       A.seat[i]=p.hole.length;
     }
@@ -2193,7 +2358,7 @@ function renderPanel(){
       $('toLobby').onclick=leaveTable; return;
     }
     const autoOn=S.auto||NET==='host';
-    ctrl.innerHTML='<button class="nextbtn" id="nextH" style="--auto:'+((G.results?5.2:3.2)*(S.fast?0.45:1))+'s">יד הבאה'+(autoOn?'<i></i>':'')+'</button>';
+    ctrl.innerHTML='<button class="nextbtn" id="nextH" style="--auto:'+((G.results?6.5:3.8)*(S.fast?0.45:1))+'s">יד הבאה'+(autoOn?'<i></i>':'')+'</button>';
     $('nextH').onclick=startHand; return;
   }
   if(PRE && PRE.tk!==G.token) PRE=null;
@@ -2438,7 +2603,7 @@ function tourneyCheck(){
   G.players.forEach(p=>{ if(!p.empty && p.stack<=0 && !p.outLogged){ p.outLogged=true; logl(p.name+' הודח מהטורניר'); } });
   if(me.stack<=0) return later(()=>endTourney(false, alive.length+1), 2800, true);
   if(alive.length<=1) return later(()=>endTourney(true,1), 2800, true);
-  later(startHand, G.results?4200:2600);
+  later(startHand, G.results?5500:3400);
 }
 function endTourney(won,place){
   if(!TR.on || TR.over) return;
