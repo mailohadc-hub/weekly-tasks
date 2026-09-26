@@ -422,6 +422,8 @@ body.three .tbadge{top:calc(64px + var(--safeT))}
 .chal li em{color:var(--gold,#E6CF97)}
 .chal li i{position:absolute;inset-block:0;inset-inline-start:0;background:rgba(230,207,151,.12);transition:width .6s}
 .chal li.done{opacity:.6}.chal li.done small{color:#7FD4A0}
+.bubble.eqb{background:rgba(10,8,6,.8);border:1px solid rgba(214,184,120,.35);color:var(--ink);font-size:.8rem;padding:2px 10px}
+.bubble.eqb.lead{border-color:var(--gold);color:#1A1208;background:linear-gradient(180deg,#F1DDA6,#C9A45C)}
 .eqline{margin-top:4px;font-size:.8rem;color:var(--muted)}.eqline b{color:var(--gold,#E6CF97)}
 .toast{position:fixed;left:50%;top:max(14px,env(safe-area-inset-top));transform:translate(-50%,-8px);z-index:60;max-width:calc(100vw - 32px);
   padding:10px 16px;border-radius:14px;background:rgba(16,13,11,.94);border:1px solid rgba(214,184,120,.5);color:#F4EFE2;font-size:.9rem;
@@ -1438,7 +1440,8 @@ async function loadModels(){
     const got=await Promise.all(Object.entries(GL_FILES).map(([k,u])=>new Promise((ok,no)=>L.load(u,g=>ok([k,g]),
       x=>{ if(x.lengthComputable){ prog[k]=[x.loaded,x.total]; show(); } },no)))).finally(()=>clearInterval(tick));
     note3d('');
-    got.forEach(([k,g])=>{ GL.src[k]=g.scene; });
+    got.forEach(([k,g])=>{ GL.src[k]=g.scene;
+      g.scene.traverse(o=>{ if(o.isMesh) [].concat(o.material).forEach(m=>['map','normalMap','roughnessMap','metalnessMap'].forEach(t=>{ if(m[t]){ m[t].anisotropy=T3.maxAniso||8; m[t].needsUpdate=true; } })); }); });
     GL.ready=true;
     // swap everyone over: seats, portraits and the lobby stage
     T3.chars.forEach(ch=>{ if(ch) T3.scene.remove(ch.root); }); T3.chars=[]; T3.prev.length=0;
@@ -1749,7 +1752,7 @@ const CHIPM=new Map();
 function chipMat(k){
   if(CHIPM.has(k)) return CHIPM.get(k);
   const col=DCOL[k], light=k===0||k===5||k===14, ink=light?'#1B1B1E':'#F4EFE2';
-  const top=canvasTex(128,128,(x,w,h)=>{
+  const top=canvasTex(256,256,(x,W,H)=>{ x.scale(2,2); const w=W/2, h=H/2;
     x.fillStyle=col; x.beginPath(); x.arc(64,64,64,0,Math.PI*2); x.fill();
     x.fillStyle=ink; for(let i=0;i<8;i++){ x.save(); x.translate(64,64); x.rotate(i*Math.PI/4); x.fillRect(-7,-63,14,20); x.restore(); }
     x.fillStyle=col; x.beginPath(); x.arc(64,64,40,0,Math.PI*2); x.fill();
@@ -1757,7 +1760,7 @@ function chipMat(k){
     x.setLineDash([]); x.globalAlpha=1; x.fillStyle=ink; x.font='700 30px "Cormorant Garamond", Georgia, serif'; x.textAlign='center'; x.textBaseline='middle';
     x.fillText(shortAmt(DENOMS[k]),64,66);
   });
-  const side=canvasTex(256,16,(x,w,h)=>{ x.fillStyle=col; x.fillRect(0,0,w,h); x.fillStyle=ink; for(let i=0;i<8;i++) x.fillRect(i*32+4,0,12,h); });
+  const side=canvasTex(512,32,(x,W,H)=>{ x.scale(2,2); const w=W/2, h=H/2; x.fillStyle=col; x.fillRect(0,0,w,h); x.fillStyle=ink; for(let i=0;i<8;i++) x.fillRect(i*32+4,0,12,h); });
   const m=[new THREE.MeshStandardMaterial({map:side,roughness:0.5}), new THREE.MeshStandardMaterial({map:top,roughness:0.42}), new THREE.MeshStandardMaterial({map:top,roughness:0.42})];
   CHIPM.set(k,m); return m;
 }
@@ -2383,8 +2386,18 @@ const A={tk:-1, seat:[0,0,0,0,0,0], board:0};
 const nameOf=i=>i===ME?(S.name||'אתה'):G.players[i].name;
 
 let lastProgress=Date.now();
+const POTC={shown:0, target:0, raf:0};
+function countPot(to){
+  if(!to){ POTC.shown=0; POTC.target=0; return; }
+  if(to===POTC.target && POTC.shown<to) return;                  // already counting up to it
+  if(to<=POTC.shown || matchMedia('(prefers-reduced-motion: reduce)').matches){ POTC.shown=to; POTC.target=to; return; }
+  POTC.target=to; const from=POTC.shown, t0=performance.now(); cancelAnimationFrame(POTC.raf);
+  const step=t=>{ const u=Math.min(1,(t-t0)/600), v=Math.round(from+(to-from)*(1-Math.pow(1-u,3))); POTC.shown=v;
+    const el=$('potN'); if(el) el.textContent=fmt(v); if(u<1 && POTC.target===to) POTC.raf=requestAnimationFrame(step); };
+  POTC.raf=requestAnimationFrame(step);
+}
 function render(think){
-  lastProgress=Date.now();
+  lastProgress=Date.now(); runoutEq();
   if(A.tk!==G.token){ A.tk=G.token; A.seat=[0,0,0,0,0,0]; A.board=0; }
   const me=ME>=0?G.players[ME]:null, om=G.mode==='omaha';
   $('modeName').innerHTML = TR.on ? 'ספין · '+(om?'אומהה':'הולדם') : om ? 'אומהה<span class="lbl"> פוט-לימיט</span>' : 'הולדם<span class="lbl"> ללא הגבלה</span>';
@@ -2403,7 +2416,8 @@ function render(think){
   $('msg').textContent=G.msg||'';
 
   const potNow=G.pot+sumBets();
-  $('pot').innerHTML = potNow ? '<span class="chip" style="--c:'+chipColor(potNow)+'"></span><span>קופה <b class="num">'+fmt(potNow)+'</b></span>' : '';
+  $('pot').innerHTML = potNow ? '<span class="chip" style="--c:'+chipColor(potNow)+'"></span><span>קופה <b class="num" id="potN">'+fmt(POTC.shown&&POTC.shown<potNow?POTC.shown:potNow)+'</b></span>' : '';
+  countPot(potNow);
 
   const hl=new Set(G.results&&G.results.hl?G.results.hl:[]), showHl=G.over&&G.results;
   $('board').innerHTML = G.board.map((c,i)=>{ const h=cardEl(c,(i>=A.board?'deal ':'')+(showHl?(hl.has(c)?'hl':'dim'):''),true);
@@ -2428,7 +2442,9 @@ function render(think){
       }).join('');
       A.seat[i]=p.hole.length;
     }
+    const eqv=RE.v[i], lead=eqv!=null && eqv>=Math.max(...Object.values(RE.v));
     const bub = p.winTxt ? '<div class="bubble win num">'+esc(p.winTxt)+'</div>'
+      : eqv!=null ? '<div class="bubble eqb'+(lead?' lead':'')+'"><b class="num">'+eqv+'%</b></div>'
       : '<div class="bubble '+(p.folded?'fold':/^(רייז|בט|אול)/.test(p.last||'')?'agg':'')+'">'+esc(p.last||'')+'</div>';
     const mood=p.win?'win':(G.over&&p.stack<=0?'sad':'');
     const th=(i===G.acting? (think||0) : 0)*(p.remote||p.host||p.human||i===ME?1:(S.fast?0.45:1));
@@ -3163,6 +3179,24 @@ function progSync(){
   gainXP(xp); save();
 }
 
+/* all in with cards face up: each player's chance to win, worked out again on every new card */
+const RE={key:'', v:{}};
+function runoutEq(){
+  if(G.over || G.board.length>=5){ RE.key=''; RE.v={}; return; }
+  const shown=G.players.map((p,i)=>({p,i})).filter(({p})=>!p.empty && !p.folded && p.shown && p.hole && p.hole.length && p.hole[0]!=null);
+  if(shown.length<2){ RE.key=''; RE.v={}; return; }
+  const key=G.token+':'+G.board.length+':'+shown.map(o=>o.i).join(',');
+  if(RE.key===key) return; RE.key=key; RE.v={};
+  const known=new Set(G.board); shown.forEach(({p})=>p.hole.forEach(c=>known.add(c)));
+  const rest=[]; for(let c=0;c<52;c++) if(!known.has(c)) rest.push(c);
+  const need=5-G.board.length, sims=G.mode==='omaha'?260:700, win=shown.map(()=>0);
+  for(let s=0;s<sims;s++){
+    for(let k=0;k<need;k++){ const j=k+Math.floor(Math.random()*(rest.length-k)); const t=rest[k]; rest[k]=rest[j]; rest[j]=t; }
+    const board=G.board.concat(rest.slice(0,need)), sc=shown.map(({p})=>best(p.hole,board).s), top=Math.max(...sc);
+    const ws=sc.filter(x=>x===top).length; sc.forEach((x,k)=>{ if(x===top) win[k]+=1/ws; });
+  }
+  shown.forEach(({i},k)=>{ RE.v[i]=Math.round(win[k]/sims*100); });
+}
 /* your chances, street by street, against the players still in: shown when the hand is over */
 const EQ={tk:-1, at:{}, fold:null};
 function eqSync(){
