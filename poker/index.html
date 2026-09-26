@@ -48,7 +48,9 @@ button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation}
 .iconb svg{width:18px;height:18px;fill:none;stroke:var(--ink);stroke-width:1.6;stroke-linecap:round}
 .mode{flex:1;min-width:0}
 .mode b{display:block;font-family:"Frank Ruhl Libre",serif;font-weight:500;font-size:1.12rem;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.005em}
-.mode small{color:var(--muted);font-size:.78rem;letter-spacing:.02em}
+.mode small .lbl{}
+@media (max-width:480px){ .mode .lbl{display:none} .mode b{font-size:1.05rem} }
+.mode small{display:block;color:var(--muted);font-size:.78rem;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bank{text-align:start;padding:2px 0 2px 2px}
 .bank small{display:block;color:var(--muted);font-size:.7rem}
 .bank b{font-family:"Frank Ruhl Libre",serif;font-weight:500;font-size:1.25rem;color:var(--goldHi)}
@@ -80,7 +82,7 @@ button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation}
 .pot b{font-family:"Frank Ruhl Libre",serif;font-weight:500;font-size:1rem;color:var(--ink)}
 .pot:empty{visibility:hidden}
 .board{direction:ltr;display:flex;gap:5px;justify-content:center;min-height:calc(var(--bw) * 1.4);--bw:min(12.4vw,50px)}
-.msg{white-space:pre-line;min-height:20px;font-size:.8rem;font-weight:500;text-align:center;color:var(--goldHi);line-height:1.45;letter-spacing:.01em}
+.msg{white-space:pre-line;min-height:20px;max-width:min(460px,86%);font-size:.8rem;font-weight:500;text-align:center;color:var(--goldHi);line-height:1.45;letter-spacing:.01em}
 
 /* cards: ivory stock, double-ended indices, real pip layouts */
 .card{position:relative;width:var(--cw,40px);max-width:100%;aspect-ratio:5/7;border-radius:calc(var(--cw,40px)*.075);
@@ -295,7 +297,7 @@ body.four .card.s3{color:var(--green)}
 .seg button[aria-pressed="true"]{border-color:var(--gold);background:linear-gradient(180deg,rgba(201,164,92,.13),rgba(201,164,92,.03))}
 .rooms{display:flex;flex-direction:column;gap:18px}
 .tier h3{margin:0 0 8px;font-size:.78rem;font-weight:500;color:var(--muted);letter-spacing:.06em}
-.rgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.rgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
 .room{display:grid;grid-template-columns:auto 1fr;column-gap:10px;row-gap:2px;align-items:center;text-align:start;padding:12px;border-radius:12px;min-height:74px;
   border:1px solid var(--goldLine);background:linear-gradient(160deg,#17402F,#0B271C 70%);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 6px 16px rgba(0,0,0,.35)}
 .room .chip{grid-row:1 / 3;width:28px;height:28px;flex-basis:28px}
@@ -336,7 +338,7 @@ body.four .card.s3{color:var(--green)}
 .thead{display:flex;align-items:center;gap:10px;min-width:0}
 .thead b{display:block;font-family:"Frank Ruhl Libre",serif;font-weight:700;font-size:1.15rem;color:#fff}
 .thead small{color:#D8C8F2;font-size:.76rem;line-height:1.4}
-.tgrid{position:relative;z-index:1;display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:8px}
+.tgrid{position:relative;z-index:1;display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:8px}
 .ttile{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px 10px;border-radius:12px;text-align:center;
   background:var(--t2);
   background:radial-gradient(120% 90% at 50% 0%,color-mix(in srgb,var(--t1) 38%,var(--t2)),var(--t2) 75%);
@@ -436,6 +438,8 @@ body.three .rail::before,body.three .felt::before,body.three .feltmark,body.thre
 body.three .wood{padding:0;background:none;box-shadow:none;border-radius:0}
 body.three .felt{background:none;box-shadow:none;overflow:visible;border-radius:0}
 body.three .center{left:var(--cx,50%);top:var(--cy,47%)}
+body.three .msg:not(:empty){background:rgba(10,8,6,.72);border:1px solid rgba(214,184,120,.28);border-radius:12px;padding:5px 12px;
+  width:max-content;max-width:min(320px,78vw);white-space:pre-line;overflow-wrap:anywhere;max-height:4.6em;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,.35)}
 body.three .seat:not(.me):not(.shown) .hand{visibility:hidden}
 body.three .board{visibility:hidden}
 .note3d{position:absolute;left:50%;top:14%;transform:translateX(-50%);z-index:6;padding:6px 14px;border-radius:999px;font-size:13px;
@@ -479,7 +483,23 @@ body.three .table{inset:0}
 .emotray button:active{transform:scale(.92)}
 @media (prefers-reduced-motion:reduce){ .emo{animation-timing-function:steps(1,end)} }
 /* a phone on its side: the room takes the width, the controls move to a side column */
-.lcol,.rcol{display:flex;flex-direction:column;gap:18px;min-width:0}
+.lcol,.rcol{display:contents}
+.lobby .lhead{order:0}.lobby .broke{order:1}.lobby .prog{order:2}.lobby .seg{order:3}.lobby .tourney{order:4}.lobby .rooms{order:5}.lobby .pick{order:6}.lobby .lstats{order:7}
+@media (orientation:landscape) and (max-height:600px), (min-width:900px) and (min-height:601px){
+  .lcol,.rcol{display:flex;flex-direction:column;gap:18px;min-width:0}
+}
+/* a computer: two columns, you on one side and the games on the other */
+@media (min-width:900px) and (min-height:601px){
+  .lobby{max-width:1180px;flex-direction:row;align-items:flex-start;gap:28px;padding:24px 28px 40px}
+  .lcol{flex:0 0 380px;position:sticky;top:20px}
+  .rcol{flex:1}
+  .lobby .lstats{order:0}
+  .rooms{display:grid;grid-template-columns:1fr 1fr;gap:18px 16px}
+  .tgrid{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .ttile.feat{grid-column:auto}
+  .tgrid{padding-top:8px}
+  .tpop{top:-9px;left:50%;right:auto;transform:translateX(-50%);white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.35)}   /* on the tile's edge, clear of the tier name */
+}
 @media (orientation:landscape) and (max-height:600px){
   /* lobby: wallet and character on one side, the rooms on the other */
   .lobby{max-width:1100px;flex-direction:row;align-items:flex-start;gap:22px;
@@ -2352,13 +2372,14 @@ function render(think){
   lastProgress=Date.now();
   if(A.tk!==G.token){ A.tk=G.token; A.seat=[0,0,0,0,0,0]; A.board=0; }
   const me=ME>=0?G.players[ME]:null, om=G.mode==='omaha';
-  $('modeName').textContent = TR.on ? 'טורניר ספין · '+(om?'אומהה':'הולדם') : om ? 'אומהה פוט-לימיט' : 'טקסס הולדם ללא הגבלה';
+  $('modeName').innerHTML = TR.on ? 'ספין · '+(om?'אומהה':'הולדם') : om ? 'אומהה<span class="lbl"> פוט-לימיט</span>' : 'הולדם<span class="lbl"> ללא הגבלה</span>';
   $('tbadge').hidden=!TR.on;
   if(TR.on){
     $('tbadge').innerHTML='<small>פרס</small><b class="num">'+fmt(TR.prize)+'</b>';
   }
-  if(TR.on) $('stakes').innerHTML = 'בליינדים '+fmt(SB)+'/'+fmt(BB)+' · '+(TR.lvl>=TLEVELS.length-1?'רמה אחרונה':'עולים בעוד '+(TEVERY-((Math.max(1,TR.hands)-1)%TEVERY))+' ידיים');
-  else $('stakes').innerHTML = 'בליינדים '+fmt(SB)+'/'+fmt(BB)+(NET!=='solo'?' <span class="netpill">'+(NET==='host'?'השולחן שלך פתוח לחברים':'מחובר לשולחן של חבר')+'</span>':', שולחן של 6');
+  const blinds='<bdi class="num">'+(BB>=10000?shortAmt(SB)+'/'+shortAmt(BB):fmt(SB)+'/'+fmt(BB))+'</bdi>';
+  if(TR.on) $('stakes').innerHTML = '<span class="lbl">בליינדים </span>'+blinds+' · '+(TR.lvl>=TLEVELS.length-1?'רמה אחרונה':'עולים בעוד '+(TEVERY-((Math.max(1,TR.hands)-1)%TEVERY))+' ידיים');
+  else $('stakes').innerHTML = '<span class="lbl">בליינדים </span>'+blinds+(NET!=='solo'?' <span class="netpill">'+(NET==='host'?'השולחן שלך פתוח לחברים':'מחובר לשולחן של חבר')+'</span>':'<span class="lbl"> · 6 בשולחן</span>');
   $('feltmark').textContent = om ? 'Pot-Limit Omaha' : "No-Limit Hold'em";
   $('bank').textContent = me ? fmt(me.stack) : '—';
   $('bank').previousElementSibling.textContent = TR.on ? "צ'יפים בטורניר" : 'בשולחן';
