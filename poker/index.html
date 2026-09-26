@@ -401,6 +401,31 @@ body.three .tbadge{top:calc(64px + var(--safeT))}
 @keyframes fall{to{transform:translateY(110vh) rotate(var(--r));opacity:.9}}
 @media (prefers-reduced-motion:reduce){ .tourney::after,.confetti i{animation:none;display:none} }
 .lstats{color:var(--muted);font-size:.82rem;line-height:1.6;margin:0}
+.foes{color:var(--gold,#E6CF97);opacity:.7}
+.prog{display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:16px;background:rgba(255,255,255,.035);border:1px solid rgba(214,184,120,.18)}
+.prog h3{margin:4px 0 0;font-size:.78rem;font-weight:500;color:var(--muted);letter-spacing:.06em}
+.lvrow{display:flex;align-items:center;gap:10px}
+.lvbadge{flex:none;padding:4px 10px;border-radius:999px;background:linear-gradient(180deg,#E6CF97,#B8904A);color:#1A1208;font-size:.8rem}
+.lvbar{flex:1;height:8px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden}
+.lvbar i{display:block;height:100%;background:linear-gradient(90deg,#B8904A,#E6CF97);border-radius:inherit;transition:width .6s}
+.lvrow small{color:var(--muted);font-size:.75rem}
+.bonus{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border-radius:12px;border:1px solid rgba(214,184,120,.45);
+  background:linear-gradient(90deg,rgba(230,207,151,.16),rgba(230,207,151,.05));color:inherit;font:inherit;text-align:start;cursor:pointer}
+.bonus span{flex:1;font-size:.88rem}.bonus b{color:var(--gold,#E6CF97)}
+.bonus em{font-style:normal;padding:5px 12px;border-radius:999px;background:#E6CF97;color:#1A1208;font-size:.82rem;font-weight:600}
+.bonus.got{cursor:default;opacity:.65;border-color:rgba(214,184,120,.18);background:none}
+.chal{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.chal li{position:relative;display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.04);overflow:hidden;font-size:.85rem}
+.chal li span{flex:1;position:relative;z-index:1}.chal li small,.chal li em{position:relative;z-index:1;font-style:normal;font-size:.78rem;color:var(--muted)}
+.chal li em{color:var(--gold,#E6CF97)}
+.chal li i{position:absolute;inset-block:0;inset-inline-start:0;background:rgba(230,207,151,.12);transition:width .6s}
+.chal li.done{opacity:.6}.chal li.done small{color:#7FD4A0}
+.eqline{margin-top:4px;font-size:.8rem;color:var(--muted)}.eqline b{color:var(--gold,#E6CF97)}
+.toast{position:fixed;left:50%;top:max(14px,env(safe-area-inset-top));transform:translate(-50%,-8px);z-index:60;max-width:calc(100vw - 32px);
+  padding:10px 16px;border-radius:14px;background:rgba(16,13,11,.94);border:1px solid rgba(214,184,120,.5);color:#F4EFE2;font-size:.9rem;
+  box-shadow:0 10px 30px rgba(0,0,0,.5);opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;text-align:center}
+.toast.in{opacity:1;transform:translate(-50%,0)}.toast b{color:var(--gold,#E6CF97)}
+.toast[hidden]{display:none}
 .iconb.arm{border-color:var(--danger);background:rgba(192,80,74,.12)}
 .bank .mini{font-size:.68rem;color:var(--faint);margin-top:1px}
 /* 3D room */
@@ -520,6 +545,7 @@ body.three .table{inset:0}
   <symbol id="su2" viewBox="0 0 100 100"><path d="M50 3Q68 28 86 50 68 72 50 97 32 72 14 50 32 28 50 3z"/></symbol>
   <symbol id="su3" viewBox="0 0 100 100"><circle cx="50" cy="27" r="20"/><circle cx="26" cy="57" r="20"/><circle cx="74" cy="57" r="20"/><circle cx="50" cy="52" r="10"/><path d="M46 55c0 20-6 32-15 41h38c-9-9-15-21-15-41z"/></symbol>
 </svg>
+<div class="toast" id="toast" role="status" hidden></div>
 <main class="lobby" id="lobby">
  <div class="lcol">
   <header class="lhead">
@@ -537,6 +563,7 @@ body.three .table{inset:0}
     <button data-m="holdem" aria-pressed="true"><b>טקסס הולדם</b><small>ללא הגבלה, 2 קלפים</small></button>
     <button data-m="omaha" aria-pressed="false"><b>אומהה</b><small>פוט-לימיט, 4 קלפים</small></button>
   </div>
+  <section class="prog" id="prog" aria-label="רמה ואתגרים"></section>
   <section class="tourney" id="tourney" aria-label="טורניר ספין"></section>
   <div class="rooms" id="rooms"></div>
   <p class="lstats" id="lbStats"></p>
@@ -1992,7 +2019,17 @@ function pickChar(){
 function newBot(vary){
   const ch=pickChar();
   return {name:ch.n, av:ch.av, stack:vary ? Math.round(BUYIN()*(0.5+rnd()*1.2)/BB)*BB : BUYIN(), color:COLORS[Math.floor(rnd()*COLORS.length)],
-    style:{tight:0.9+rnd()*0.3, aggr:0.12+rnd()*0.45, bluff:0.02+rnd()*0.07, speed:0.8+rnd()*0.5}};
+    style:botStyle()};
+}
+/* who sits in each room: beginners call too much and rarely raise; the high rooms play tight, bet with
+   purpose and bluff now and then. The step from room to room keeps the game hard enough, not too hard. */
+const skillOf=lv=>Math.max(0,Math.min(4,Math.floor((lv|0)/2)));
+const SKILL_NAMES=['מתחילים','חובבים','שחקנים קבועים','שחקנים חזקים','מקצוענים'];
+function botStyle(){
+  let inTour=false; try{ inTour=TR.on; }catch(e){}          // the first table is laid before the tournament state exists
+  const k=inTour?2:skillOf(G.lv);
+  return {tight:[0.72,0.82,0.92,1.0,1.06][k]+rnd()*0.2, aggr:[0.08,0.15,0.22,0.3,0.36][k]+rnd()*0.3,
+    bluff:[0.01,0.03,0.05,0.07,0.08][k]+rnd()*0.03, loose:[0.3,0.18,0.1,0.04,0.02][k], speed:0.8+rnd()*0.5};
 }
 function blank(p){ Object.assign(p,{hole:[],bet:0,total:0,folded:false,allin:false,acted:false,canRaise:true,last:'',shown:false,win:0,winTxt:''});
   if(p.empty) p.folded=true;           // an empty chair never holds cards or acts
@@ -2281,6 +2318,7 @@ function botDecide(i){
   const need = odds*st.tight*(L.callAmt>=p.stack?1.25:1.02);
   if(eq>=need) return {t:'call'};
   if(L.canRaise && !pre && r<st.bluff*0.5) return {t:'raise', to:niceTo(raiseTo(),L)};
+  if(st.loose && L.callAmt<=p.stack*0.2 && rnd()<st.loose) return {t:'call'};       // a weaker player hangs on too long
   return {t:'fold'};
 }
 function botAct(i){
@@ -2374,7 +2412,7 @@ function render(think){
   if(three){ $('table').style.setProperty('--cx',T3.P.centre[0]+'%'); $('table').style.setProperty('--cy',T3.P.centre[1]+'%'); }
   $('viewBtn').hidden=!T3.ready; $('viewBtn').textContent=three?'2D':'3D';
   $('emoBtn').hidden=ME<0; if(ME<0) $('emoTray').hidden=true;
-  sync3D(); updateEmotes(); chips2D(); sfxSync();
+  sync3D(); updateEmotes(); chips2D(); sfxSync(); eqSync(); progSync();
 
   renderPanel();
   if(NET!=='client'){ $('log').innerHTML=G.log.slice(-40).map(t=>'<div>'+esc(t)+'</div>').join(''); const lg=$('log'); lg.scrollTop=lg.scrollHeight; }
@@ -2397,6 +2435,7 @@ function renderPanel(){
   $('handInfo').innerHTML=info;
 
   if(G.over){
+    $('handInfo').innerHTML=info+eqLine();
     $('toCallInfo').textContent='';
     if(NET==='client'){ ctrl.innerHTML='<div class="waitline">היד הבאה מתחילה עוד רגע</div>'; return; }
     if(TR.on){ ctrl.innerHTML='<div class="waitline">'+(TR.over?'הטורניר הסתיים':me.stack<=0?'הודחת מהטורניר':'היד הבאה מתחילה עוד רגע')+'</div>'; return; }
@@ -2535,6 +2574,7 @@ let avScrolled=false;
 function renderLobby(){
   checkBroke();
   const m=S.lobbyMode==='omaha'?'omaha':'holdem';
+  renderProg();
   $('lbBank').textContent=fmt(S.bank);
   $('lbSub').textContent='שיא: '+fmt(Math.max(S.peak||0,S.bank));
   $('broke').hidden=!S.brokeAt;
@@ -2556,7 +2596,7 @@ function renderLobby(){
         +'<span class="tbuy">'+(ok?'כניסה <b class="num">'+fmt(t.buy)+'</b>':NET!=='solo'?'לא זמין עם חברים':'צריך <b class="num">'+fmt(t.buy)+'</b>')+'</span>'
         +'<small class="trange">מ־<span class="num">'+shortAmt(Math.round(t.buy*1.4))+'</span> עד <span class="num">'+shortAmt(t.buy*4000)+'</span></small></button>'; }).join('')+'</div>';
   $('tourney').querySelectorAll('.ttile').forEach(b=>b.onclick=()=>startTourney(m,b.dataset.t));
-  $('rooms').innerHTML=TIERS.map(([title,lvs],ti)=>'<section class="tier"><h3>'+title+'</h3><div class="rgrid">'+lvs.map(lv=>{
+  $('rooms').innerHTML=TIERS.map(([title,lvs],ti)=>'<section class="tier"><h3>'+title+' <span class="foes">· יריבים: '+SKILL_NAMES[skillOf(lvs[0])]+'</span></h3><div class="rgrid">'+lvs.map(lv=>{
     const [sb,bb]=LEVELS[lv], full=bb*100, ok=S.bank>=bb*MIN_BB, buy=Math.min(full,S.bank);
     const sub = ok ? (buy<full?'כל הארנק: ':'כניסה ')+'<span class="num">'+fmt(buy)+'</span>' : 'צריך לפחות <span class="num">'+fmt(bb*MIN_BB)+'</span>';
     return '<button class="room'+(lv>=8?' vip':'')+'" data-lv="'+lv+'"'+(ok?'':' disabled')+' aria-label="'+(m==='omaha'?'אומהה':'הולדם')+' '+sb+'/'+bb+'">'
@@ -2634,7 +2674,7 @@ function startTourney(mode,tid){
   const tier=tierOf(tid);
   if(NET!=='solo' || S.bank<tier.buy) return;
   timers.forEach(clearTimeout); timers=[]; pending=0; G.token++;
-  S.bank-=tier.buy; S.tPlayed=(S.tPlayed|0)+1; S.lobbyMode=mode; save();
+  S.bank-=tier.buy; S.tPlayed=(S.tPlayed|0)+1; bumpChallenge('spin'); S.lobbyMode=mode; save();
   const mult=drawMult();
   TR={on:true, over:false, mode, tier:tier.id, buy:tier.buy, mult, prize:Math.round(tier.buy*mult), hands:0, lvl:0};
   G.mode=mode; tBlinds();
@@ -3011,6 +3051,119 @@ document.addEventListener('keydown',e=>{
   else if(k==='arrowup'||k==='arrowright') hit('rPlus');
   else if(k==='arrowdown'||k==='arrowleft') hit('rMinus');
 });
+
+/* ---------- progress: levels, daily challenges, the daily bonus, and what your chances were ----------
+   Rewards are steady and earned, never a lottery: experience for every hand and every pot, a level
+   ladder that pays a fixed amount at each step, three new challenges a day, and a bonus for coming back
+   that grows for seven days in a row. Amounts are small next to the wallet so the chips keep their value. */
+const XP_HAND=10, XP_WIN=25, XP_SHOW=15;
+const xpFor=l=>100*l*(l+1)/2;                                  // total experience needed to reach level l+1
+function levelOf(xp){ let l=1; while(xp>=xpFor(l)) l++; return l; }
+const levelPrize=l=>Math.min(250000, 20000*l);
+const today=()=>{ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+const CHALLENGES=[
+  {id:'hands',  n:20, xp:60,  chips:30000, t:'שחק 20 ידיים'},
+  {id:'wins',   n:5,  xp:80,  chips:40000, t:'זכה ב־5 קופות'},
+  {id:'show',   n:3,  xp:80,  chips:40000, t:'זכה ב־3 שואודאונים'},
+  {id:'big',    n:1,  xp:100, chips:50000, t:'זכה בקופה של 30 בליינדים גדולים ומעלה'},
+  {id:'flush',  n:1,  xp:120, chips:60000, t:'זכה עם צבע או יד חזקה יותר'},
+  {id:'steal',  n:3,  xp:70,  chips:35000, t:'קח 3 קופות בלי שואודאון'},
+  {id:'omaha',  n:10, xp:60,  chips:30000, t:'שחק 10 ידיים של אומהה'},
+  {id:'spin',   n:1,  xp:80,  chips:40000, t:'שחק טורניר ספין'},
+  {id:'twopair',n:2,  xp:90,  chips:45000, t:'זכה פעמיים עם שני זוגות ומעלה'}
+];
+function dailyPick(day){                                        // the same three for everyone on the same day
+  let h=0; for(const ch of day) h=(h*31+ch.charCodeAt(0))>>>0;
+  const ids=CHALLENGES.map(c=>c.id), out=[];
+  while(out.length<3){ h=(h*1103515245+12345)>>>0; const id=ids[h%ids.length]; if(!out.includes(id)) out.push(id); }
+  return out;
+}
+function daily(){
+  const d=today();
+  if(!S.daily || S.daily.day!==d) S.daily={day:d, ids:dailyPick(d), prog:[0,0,0], done:[false,false,false]};
+  return S.daily;
+}
+/* the reward for coming back: collected by a tap in the lobby */
+function bonusReady(){ return S.bonusDay!==today(); }
+function bonusStreak(){ const y=new Date(Date.now()-864e5), yd=y.getFullYear()+'-'+String(y.getMonth()+1).padStart(2,'0')+'-'+String(y.getDate()).padStart(2,'0');
+  return S.bonusDay===yd ? Math.min(7,(S.streak|0)+1) : 1; }
+const bonusAmt=k=>20000*k;
+function collectBonus(){
+  if(!bonusReady()) return;
+  const k=bonusStreak(), amt=bonusAmt(k);
+  S.streak=k; S.bonusDay=today(); S.bank+=amt; notePeak(); checkBroke(); save();
+  toast('בונוס יומי, יום '+k+' ברצף: <b class="num">+'+fmt(amt)+'</b>'); play('win');
+  renderLobby();
+}
+function gainXP(n,why){
+  const before=levelOf(S.xp|0); S.xp=(S.xp|0)+n; const after=levelOf(S.xp);
+  for(let l=before+1;l<=after;l++){ const p=levelPrize(l); S.bank+=p; notePeak();
+    toast('עלית לרמה <b>'+l+'</b>! <b class="num">+'+fmt(p)+'</b> לארנק',4200); play('win',0.3); }
+}
+function bumpChallenge(id,by){
+  const D=daily();
+  D.ids.forEach((cid,k)=>{ if(cid!==id || D.done[k]) return; const c=CHALLENGES.find(x=>x.id===cid);
+    D.prog[k]=Math.min(c.n,D.prog[k]+(by||1));
+    if(D.prog[k]>=c.n){ D.done[k]=true; S.bank+=c.chips; notePeak(); gainXP(c.xp);
+      toast('אתגר הושלם: '+c.t+' · <b class="num">+'+fmt(c.chips)+'</b>',4200); play('win',0.2); } });
+}
+/* read the end of each hand you played, from the game state, the same way in every mode */
+const PR={inTk:-1, doneTk:-1};
+function progSync(){
+  if(ME<0) return; const me=G.players[ME]; if(!me || me.empty) return;
+  if(!G.over && me.hole && me.hole.length && me.hole[0]!=null) PR.inTk=G.token;
+  if(!G.over || PR.inTk!==G.token || PR.doneTk===G.token) return;
+  const someoneWon=G.players.some(p=>p.win>0); if(!someoneWon) return;
+  PR.doneTk=G.token;
+  let xp=XP_HAND; bumpChallenge('hands'); if(G.mode==='omaha') bumpChallenge('omaha');
+  if(me.win>0){
+    xp+=XP_WIN; bumpChallenge('wins');
+    if(!G.results) bumpChallenge('steal');
+    else { xp+=XP_SHOW; bumpChallenge('show');
+      if(G.board.length===5){ const cat=Math.floor(best(me.hole,G.board).s/CAT);
+        if(cat>=5) bumpChallenge('flush'); if(cat>=2) bumpChallenge('twopair'); } }
+    if(BB && me.win>=30*BB) bumpChallenge('big');
+  }
+  gainXP(xp); save();
+}
+
+/* your chances, street by street, against the players still in: shown when the hand is over */
+const EQ={tk:-1, at:{}, fold:null};
+function eqSync(){
+  if(ME<0) return; const me=G.players[ME];
+  if(EQ.tk!==G.token){ EQ.tk=G.token; EQ.at={}; EQ.fold=null; }
+  if(!me || G.over || !me.hole || !me.hole.length || me.hole[0]==null) return;
+  const k=G.board.length, opp=G.players.filter((p,i)=>i!==ME && !p.empty && !p.folded).length;
+  if(me.folded){ if(EQ.fold==null && EQ.last!=null) EQ.fold=EQ.last; return; }
+  if(EQ.at[k]==null && opp>0){ EQ.at[k]=Math.round(equity(ME,opp)*100); }
+  EQ.last=EQ.at[k];
+}
+function eqLine(){
+  const names={0:'פרי־פלופ',3:'פלופ',4:'טרן',5:'ריבר'}, ks=[0,3,4,5].filter(k=>EQ.at[k]!=null);
+  if(!ks.length) return '';
+  const me=G.players[ME];
+  if(me && me.folded && EQ.fold!=null) return '<div class="eqline">כשוויתרת, הסיכוי שלך לנצח היה <b class="num">'+EQ.fold+'%</b></div>';
+  return '<div class="eqline">סיכוי לנצח: '+ks.map(k=>names[k]+' <b class="num">'+EQ.at[k]+'%</b>').join(' · ')+'</div>';
+}
+
+/* the lobby card: level, today's challenges, the daily bonus */
+function renderProg(){
+  const el=$('prog'); if(!el) return;
+  const xp=S.xp|0, l=levelOf(xp), lo=l>1?xpFor(l-1):0, hi=xpFor(l), pct=Math.round((xp-lo)/(hi-lo)*100), D=daily();
+  const b=bonusReady(), k=bonusStreak();
+  el.innerHTML='<div class="lvrow"><span class="lvbadge">רמה <b class="num">'+l+'</b></span>'
+    +'<div class="lvbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="'+pct+'" aria-label="התקדמות לרמה '+(l+1)+'"><i style="width:'+pct+'%"></i></div>'
+    +'<small class="num">'+fmt(xp-lo)+'/'+fmt(hi-lo)+'</small></div>'
+    +(b?'<button class="bonus" id="bonusBtn"><span>בונוס יומי · יום '+k+' ברצף</span><b class="num">+'+fmt(bonusAmt(k))+'</b><em>אסוף</em></button>'
+       :'<div class="bonus got"><span>הבונוס של היום נאסף · מחר: יום '+Math.min(7,(S.streak|0)+1)+'</span><b class="num">+'+fmt(bonusAmt(Math.min(7,(S.streak|0)+1)))+'</b></div>')
+    +'<h3>אתגרים להיום</h3><ul class="chal">'+D.ids.map((id,i)=>{ const c=CHALLENGES.find(x=>x.id===id), p=D.prog[i];
+      return '<li class="'+(D.done[i]?'done':'')+'"><span>'+c.t+'</span><small class="num">'+(D.done[i]?'✓':p+'/'+c.n)+'</small>'
+        +'<i style="width:'+Math.round(p/c.n*100)+'%"></i><em class="num">+'+fmt(c.chips)+'</em></li>'; }).join('')+'</ul>';
+  if(b) $('bonusBtn').onclick=collectBonus;
+}
+let toastT=0;
+function toast(html,ms){ const el=$('toast'); if(!el) return; el.innerHTML=html; el.hidden=false; el.classList.remove('in'); void el.offsetWidth; el.classList.add('in');
+  clearTimeout(toastT); toastT=setTimeout(()=>{ el.hidden=true; },ms||3200); }
 
 /* turn clock */
 let buzzed=-1, ticked=-1;
