@@ -448,6 +448,9 @@ body.three .board{visibility:hidden}
 body.three .card.slot{box-shadow:none}
 /* your own hand sits beside your name plate, so your character stays in view */
 body.three .seat.me .hand{position:absolute;left:calc(100% + 10px);bottom:-4px;margin:0;min-height:0}
+/* a phone held upright: your cards sit a little lower, clear of the neighbour's name and last move */
+@media (orientation:portrait){ body.three .seat.me .hand{bottom:-34px} }
+
 body.three .seat.me .hand .card:nth-child(n){transform:none}
 body.three .seat.me .hand .card + .card{margin-inline-start:-10px}
 body.three .seat.me.omaha .hand .card{--cw:40px}
@@ -555,6 +558,18 @@ body.three .table{inset:0}
 .clock.low{border-color:var(--danger);color:#F0B3AE;animation:pulse 1s ease-in-out infinite}
 @keyframes pulse{50%{background:rgba(192,80,74,.18)}}
 .opts3.five{grid-template-columns:repeat(5,1fr)}
+/* a big screen: names, stacks and bets around the 3D table grow with it */
+@media (min-width:1100px) and (min-height:700px){
+  body.three .seat .plate{min-width:96px;padding:5px 12px;border-radius:10px}
+  body.three .seat:not(.me) .pinfo b{font-size:.95rem}
+  body.three .seat .bubble{font-size:.82rem}
+  body.three .betchip{font-size:.92rem;padding:3px 10px}
+  body.three .stacklbl{font-size:.9rem;padding:2px 10px}
+  body.three .seat.me .plate{width:168px}
+  body.three .seat.me .pinfo b{font-size:1rem}
+  body.three .seat.me .hand .card{--cw:62px}
+  body.three .msg{font-size:.95rem}
+}
 </style>
 </head>
 <body class="four">
@@ -1678,22 +1693,22 @@ function layout3D(){
   const pts=[];
   T3.seatPos.forEach((s,v)=>{
     pts.push({p:new T.Vector3(s.x,3.0,s.z), kind:side(s,v)?'loose':'head'});
-    pts.push({p:plateAt(s,v), kind:'plate'});
+    pts.push({p:plateAt(s,v), kind:'plate', far:land&&v&&s.nz<-0.5&&!side(s,v)});   // a far plate carries shown cards above it
     if(v) pts.push({p:new T.Vector3(s.x,0.3,s.z), kind:side(s,v)?'loose':'foot'});
   });
   const hitsPanel=(x,y,hw,hh)=>pan && x-hw<pan.x1 && x+hw>pan.x0 && y+hh>pan.y0 && y-hh<pan.y1;
   let chosen=null;
   for(let f=16; f<=85 && !chosen; f++){
     cam.fov=f; cam.clearViewOffset(); cam.lookAt(look); cam.updateProjectionMatrix(); cam.updateMatrixWorld();
-    const sp=pts.map(o=>{ const q=o.p.clone().project(cam); return {x:(q.x+1)/2*w, y:(1-q.y)/2*h, kind:o.kind}; });
-    const ys=sp.map(o=>o.y+(o.kind==='plate'?plateH:0)), yTop=Math.min(...sp.map(o=>o.y-(o.kind==='plate'?plateH:0)));
+    const sp=pts.map(o=>{ const q=o.p.clone().project(cam); return {x:(q.x+1)/2*w, y:(1-q.y)/2*h, kind:o.kind, far:o.far}; });
+    const ys=sp.map(o=>o.y+(o.kind==='plate'?plateH:0)), yTop=Math.min(...sp.map(o=>o.y-(o.kind==='plate'?plateH+(o.far?46:0):0)));
     const yBot=Math.max(...ys);
     if(yBot-yTop > h-hdrB*0.45) continue;
     const dy=(hdrB*0.45+h)/2-(yTop+yBot)/2;                    // centre vertically in the free height
     const shifts=pan?[0,0.1,0.2,0.3,0.4,0.5,0.6,0.7].map(k=>k*(pan.x1)):[0];
     for(const dx of shifts){
       const ok=sp.every(o=>{ const x=o.x+dx, y=o.y+dy;
-        if(o.kind==='plate') return x-plateW>=2 && x+plateW<=w-2 && y-plateH>=hdrB && y+plateH<=h-2 && !hitsPanel(x,y,plateW,plateH);
+        if(o.kind==='plate') return x-plateW>=2 && x+plateW<=w-2 && y-plateH-(o.far?46:0)>=hdrB && y+plateH<=h-2 && !hitsPanel(x,y,plateW,plateH);
         if(o.kind==='head') return x>=8 && x<=w-8 && y>=4 && !hitsPanel(x,y,18,18);
         if(o.kind==='loose') return x>=-w*0.09 && x<=w*1.09 && y>=4;
         return x>=0 && x<=w && y<=h+18 && !hitsPanel(x,y,10,4);
@@ -1990,7 +2005,7 @@ function loop3D(ts){
   const f=T3.fps||(T3.fps={n:0,sum:0});
   if(dt>0 && dt<0.1 && !idle){ f.n++; f.sum+=dt; }
   if(f.n>=90){ const avg=f.sum/f.n; f.n=0; f.sum=0;
-    if(avg>1/40 && T3.dpr>1.25){ T3.dpr=Math.max(1.25,T3.dpr-0.5); T3.r.setPixelRatio(T3.dpr); if(T3.lastW) T3.r.setSize(T3.lastW,T3.lastH,false); }
+    if(avg>1/40 && T3.dpr>1.25){ T3.dpr=Math.max(1.25,T3.dpr-0.5); T3.r.setPixelRatio(T3.dpr); if(T3.lastW) T3.r.setSize(T3.lastW,T3.lastH,false); T3.r.render(T3.scene,T3.cam); }
     else if(avg>1/28 && T3.spot && T3.spot.castShadow){ T3.spot.castShadow=false; }                       // then soft shadows go
     else if(avg>1/20 && !f.gaveUp && !navigator.webdriver){ f.gaveUp=true; S.view3d=false; save(); layout3D(); render();  // then the flat table
       toast2D(); } }
