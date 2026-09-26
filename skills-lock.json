@@ -6,6 +6,12 @@
       "sourceType": "github",
       "skillPath": "skills/game-design-theory/SKILL.md",
       "computedHash": "e87a16b82d8379b1389c94b15b16d2f52a611338467291aeeec4f72a73a7fd96"
+    },
+    "threejs-game-ui-designer": {
+      "source": "majidmanzarpour/threejs-game-skills",
+      "sourceType": "github",
+      "skillPath": "skills/threejs-game-ui-designer/SKILL.md",
+      "computedHash": "f3a634b5e0d32cf98169603ed1c58af8cd4bb38c6b10502218edd9d65d103d9f"
     }
   }
 }
