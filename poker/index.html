@@ -1185,7 +1185,9 @@ function stadium(hl,hw){ const s=new THREE.Shape(), c=hl-hw;
   s.moveTo(-c,-hw); s.lineTo(c,-hw); s.absarc(c,0,hw,-Math.PI/2,Math.PI/2,false); s.lineTo(-c,hw); s.absarc(-c,0,hw,Math.PI/2,Math.PI*1.5,false); return s; }
 function stadiumHole(hl,hw){ const p=new THREE.Path(), c=hl-hw;
   p.moveTo(-c,-hw); p.absarc(-c,0,hw,Math.PI*1.5,Math.PI/2,true); p.lineTo(c,hw); p.absarc(c,0,hw,Math.PI/2,-Math.PI/2,true); p.lineTo(-c,-hw); return p; }
-const HL=3.3, HW=1.75, FELT_Y=1.46;
+let HL=3.3, HW=1.75; const FELT_Y=1.46;
+/* on a phone held upright the table is laid out bigger around the same players, so the felt and the cards fill the screen */
+const tableSize=land=>{ HL=land?3.3:4.15; HW=land?1.75:2.2; };
 
 function init3DTable(){
   if(T3.ready||T3.failed||!window.THREE) return;
@@ -1594,7 +1596,7 @@ function layout3D(){
   const el=$('table'), w=el.clientWidth, h=el.clientHeight; if(w<10||h<10) return;
   if(T3.lastW===w && T3.lastH===h && T3.P) return; T3.lastW=w; T3.lastH=h;
   const land=w/h>1.1;
-  if(land!==T3.land){ T3.land=land; if(T3.tableG) T3.scene.remove(T3.tableG); T3.tableG=buildTable(land); T3.scene.add(T3.tableG); if(T3.shoeG) T3.scene.remove(T3.shoeG); T3.shoeG=buildShoe(); T3.scene.add(T3.shoeG); placeSeats(); T3.label=''; }
+  if(land!==T3.land){ T3.land=land; tableSize(land); if(T3.tableG) T3.scene.remove(T3.tableG); T3.tableG=buildTable(land); T3.scene.add(T3.tableG); if(T3.shoeG) T3.scene.remove(T3.shoeG); T3.shoeG=buildShoe(); T3.scene.add(T3.shoeG); placeSeats(); T3.label=''; }
   T3.r.setSize(w,h,false);
   const cam=T3.cam, hero=T3.seatPos[0], T=THREE; cam.aspect=w/h;
   cam.position.set(0, land?9.6:13.5, hero.z+(land?4.4:3.4));
@@ -1610,11 +1612,15 @@ function layout3D(){
     pan={x0:0, x1:pw+4, y0:h-ph, y1:h};                         // the controls sit in the bottom-left corner
   }
   const plateW=46, plateH=22, plateY=(s,v)=>!v?2.0:((land&&s.nz<-0.5)?4.0:1.45);   // across the table: the plate floats above the head
+  /* upright phone: the side players may run off the edges of the screen (the table is what matters), their
+     name plates sit on the rail in front of them */
+  const side=(s,v)=>!land && v && Math.abs(s.nx)>0.5;
+  const plateAt=(s,v)=>side(s,v)?new T.Vector3(s.ex+s.nx*0.3,plateY(s,v),s.ez+s.nz*0.3):new T.Vector3(s.x,plateY(s,v),s.z);
   const pts=[];
   T3.seatPos.forEach((s,v)=>{
-    pts.push({p:new T.Vector3(s.x,3.0,s.z), kind:'head'});
-    pts.push({p:new T.Vector3(s.x,plateY(s,v),s.z), kind:'plate'});
-    if(v) pts.push({p:new T.Vector3(s.x,0.3,s.z), kind:'foot'});
+    pts.push({p:new T.Vector3(s.x,3.0,s.z), kind:side(s,v)?'loose':'head'});
+    pts.push({p:plateAt(s,v), kind:'plate'});
+    if(v) pts.push({p:new T.Vector3(s.x,0.3,s.z), kind:side(s,v)?'loose':'foot'});
   });
   const hitsPanel=(x,y,hw,hh)=>pan && x-hw<pan.x1 && x+hw>pan.x0 && y+hh>pan.y0 && y-hh<pan.y1;
   let chosen=null;
@@ -1630,6 +1636,7 @@ function layout3D(){
       const ok=sp.every(o=>{ const x=o.x+dx, y=o.y+dy;
         if(o.kind==='plate') return x-plateW>=2 && x+plateW<=w-2 && y-plateH>=hdrB && y+plateH<=h-2 && !hitsPanel(x,y,plateW,plateH);
         if(o.kind==='head') return x>=8 && x<=w-8 && y>=4 && !hitsPanel(x,y,18,18);
+        if(o.kind==='loose') return x>=-w*0.09 && x<=w*1.09 && y>=4;
         return x>=0 && x<=w && y<=h+18 && !hitsPanel(x,y,10,4);
       });
       if(ok){ chosen={dx,dy}; break; }
@@ -1638,10 +1645,12 @@ function layout3D(){
   if(chosen){ cam.setViewOffset(w,h,-chosen.dx,-chosen.dy,w,h); cam.updateProjectionMatrix(); }
   const pr=(x,y,z)=>{ const q=new T.Vector3(x,y,z).project(cam); return [(q.x+1)*50,(1-q.y)*50]; };
   T3.P={
-    plate:T3.seatPos.map((s,v)=>pr(s.x,plateY(s,v),s.z)),
-    head:T3.seatPos.map((s,v)=>v?pr(s.x,3.1,s.z):pr(s.x-(land?2.0:1.6),2.4,s.z)),
+    plate:T3.seatPos.map((s,v)=>{ const q=plateAt(s,v); return pr(q.x,q.y,q.z); }),
+    head:T3.seatPos.map((s,v)=>{ const q=v?pr(s.x,3.1,s.z):pr(s.x-(land?2.0:1.6),2.4,s.z); q[0]=Math.max(9,Math.min(91,q[0])); return q; }),
     bet:T3.seatPos.map(s=>{ const b=betSpot(s); return pr(b.x,FELT_Y+0.12,b.z); }),
-    stack:T3.seatPos.map(s=>{ const b=stackSpot(s); return pr(b.x,FELT_Y+0.5,b.z); }),
+    stack:T3.seatPos.map((s,v)=>{ if(side(s,v)){ const q=plateAt(s,v), p=pr(q.x,q.y,q.z); return [p[0], p[1]-36/h*100]; }   // just above the name plate
+      if(!land && v && s.nz<-0.5){ const q=plateAt(s,v), p=pr(q.x,q.y,q.z); return [p[0]+84/w*100, p[1]]; }   // beside the far player's plate
+      const b=stackSpot(s); return pr(b.x,FELT_Y+0.5,b.z); }),
     far:T3.seatPos.map(s=>land&&s.nz<-0.5),
     dbtn:T3.seatPos.map(s=>pr(s.ex-s.nx*0.55-s.nz*0.6,FELT_Y,s.ez-s.nz*0.55+s.nx*0.6)),
     centre:pr(0,FELT_Y,land?0.45:0.2)
@@ -1694,7 +1703,7 @@ function chipStack(amount,cols,per){
 const feltAt=(x,z)=>new THREE.Vector3(x,FELT_Y+0.002,z);
 function stackSpot(s){ return feltAt(s.ex-s.nx*0.4-s.nz*0.72, s.ez-s.nz*0.4+s.nx*0.72); }
 function betSpot(s){ const k=(T3.land&&s.nz<-0.5)?0.55:0.85; return feltAt(s.ex-s.nx*k, s.ez-s.nz*k); }
-function potSpot(){ return T3.land?feltAt(0,-0.55):feltAt(0,-1.25); }
+function potSpot(){ return T3.land?feltAt(0,-0.55):feltAt(0,-HL*0.36); }
 function putGroup(rec,key,g,at){
   if(rec[key]){ T3.scene.remove(rec[key]); rec[key]=null; }
   if(g){ g.position.copy(at); T3.scene.add(g); rec[key]=g; }
@@ -1746,17 +1755,17 @@ function cardShapeGeo(W,H,r){ return geo('cs'+[W,H,r],()=>{
   return g; }); }
 function makeCard3D(W){
   const H=W*1.4, g=new THREE.Group();
-  const face=new THREE.Mesh(cardShapeGeo(W,H,W*0.07),new THREE.MeshStandardMaterial({color:0xffffff,roughness:0.42}));
+  const face=new THREE.Mesh(cardShapeGeo(W,H,W*0.07),new THREE.MeshBasicMaterial({color:0xffffff,toneMapped:false}));
   const back=new THREE.Mesh(cardShapeGeo(W,H,W*0.07),T3.cardMats[2]); back.rotation.y=Math.PI; back.position.z=-0.004;
   face.castShadow=back.castShadow=true; face.receiveShadow=true; g.add(face,back); g.userData.face=face;
   return g;
 }
 function setFace(card,c){ const m=card.userData.face.material; const t=cardTex(c); if(m.map!==t){ m.map=t; m.needsUpdate=true; } }
 const faceUp=-Math.PI/2, faceDown=Math.PI/2;       // rotation.x of a card lying on the felt
-function shoeSpot(){ return T3.land ? feltAt(-1.75,-(HW-0.55)) : feltAt(-(HW-0.55),-1.55); }
-function boardW(){ return T3.land?0.74:0.66; }
+function shoeSpot(){ return T3.land ? feltAt(-1.75,-(HW-0.55)) : feltAt(-(HW-0.6),-HL*0.46); }
+function boardW(){ return T3.land?0.74:0.8; }
 /* on a phone held upright the board is far from the camera: the cards are larger, nearer, and propped up a little toward the player */
-const boardTilt=()=>T3.land?0:0.38;
+const boardTilt=()=>T3.land?0:0.3;
 const boardRot=()=>faceUp+boardTilt();
 const boardLift=()=>0.006+Math.sin(boardTilt())*boardW()*0.7;
 function boardSlot(i){ const W=boardW(), gap=W*(T3.land?0.12:0.05), x0=-(5*W+4*gap)/2+W/2; return feltAt(x0+i*(W+gap), T3.land?0.12:0.35); }
