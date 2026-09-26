@@ -534,7 +534,7 @@ body.three .table{inset:0}
   body.three .bank small{font-size:.62rem}
   body.three .tablewrap{position:absolute;inset:0;min-height:0}
   body.three #scene3d{border-radius:0}
-  body.three .panel{position:absolute;z-index:20;bottom:0;inset-inline-end:0;width:min(360px,46%);min-height:0;
+  body.three .panel{position:absolute;z-index:20;bottom:0;inset-inline-end:0;width:min(310px,37%);min-height:0;
     padding:10px 12px max(10px,env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px));
     background:linear-gradient(180deg,rgba(10,11,11,0),rgba(10,11,11,.86) 24px);border-start-start-radius:14px}
   body.three .info{padding-bottom:6px;font-size:.78rem}
@@ -571,6 +571,51 @@ body.three .table{inset:0}
   body.three .seat.me .pinfo b{font-size:1rem}
   body.three .seat.me .hand .card{--cw:62px}
   body.three .msg{font-size:.95rem}
+}
+
+/* ---------- 3D: the table is the whole screen, the controls are a HUD over it ---------- */
+@media (orientation:portrait){
+  body.three .app{position:relative;max-width:none!important;min-height:0;height:100%;display:block}
+  body.three .top{position:absolute;z-index:30;top:0;left:0;right:0;padding:max(8px,var(--safeT)) 12px 22px;
+    background:linear-gradient(180deg,rgba(6,5,5,.88),rgba(6,5,5,0))}
+  body.three .top .iconb{background:rgba(10,10,10,.45)}
+  body.three .tablewrap{position:absolute;inset:0;min-height:0;padding:0}
+  body.three .table{inset:0}
+  body.three #scene3d{border-radius:0}
+  body.three .panel{position:absolute;z-index:20;left:0;right:0;bottom:0;min-height:0;padding:26px 10px max(10px,var(--safeB));
+    background:linear-gradient(180deg,rgba(6,5,5,0),rgba(6,5,5,.7) 42%)}
+  body.three .emobtn{bottom:150px}
+  body.three .emotray{bottom:204px}
+}
+body.three .info{justify-content:center;gap:10px;padding:0 0 8px}
+body.three .info>span:empty{display:none}
+body.three .info>span{padding:3px 10px;border-radius:999px;background:rgba(8,7,6,.62);border:1px solid rgba(214,184,120,.18);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+body.three .acts button,body.three .pre button,body.three .nextbtn{backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 6px 18px rgba(0,0,0,.45)}
+body.three .acts .fold{background:rgba(40,12,12,.55)}
+body.three .acts .call{background:linear-gradient(180deg,rgba(44,48,46,.82),rgba(20,22,21,.82))}
+body.three .pre button,body.three .nextbtn{background:rgba(10,10,10,.55)}
+body.three .waitline{padding:6px 0;text-shadow:0 1px 3px #000}
+/* the raise size opens as a card above the buttons, only when you choose to raise */
+body.three .sizer{display:none}
+body.three .panel.sizing .sizer{display:flex;position:absolute;left:10px;right:10px;bottom:calc(100% - 18px);margin:0;padding:12px;gap:10px;border-radius:16px;
+  background:rgba(14,12,11,.94);border:1px solid rgba(214,184,120,.35);box-shadow:0 14px 40px rgba(0,0,0,.6)}
+body.three .panel.sizing .acts .raise{outline:2px solid #F1DDA6;outline-offset:2px}
+.szhead{display:none}
+body.three .szhead{display:flex;align-items:center;justify-content:space-between;font-size:.8rem;color:var(--muted)}
+.szclose{width:32px;height:32px;border-radius:50%;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--ink);font-size:1.1rem;line-height:1}
+
+/* a phone on its side, 3D: the buttons are a narrow column at the edge, the status line sits under the top bar */
+@media (orientation:landscape) and (max-height:600px){
+  body.three .panel{width:136px;padding:8px 8px max(8px,env(safe-area-inset-bottom,0px)) max(10px,env(safe-area-inset-left,0px));background:none;border-radius:0}
+  body.three .acts{grid-template-columns:1fr;gap:6px}
+  body.three .acts button{min-height:48px;font-size:.9rem}
+  body.three .pre{grid-template-columns:1fr;gap:6px}
+  body.three .pre button{min-height:40px;font-size:.8rem}
+  body.three .nextbtn{min-height:48px;font-size:.9rem}
+  body.three .waitline{font-size:.78rem}
+  body.three .info{flex-direction:column;align-items:stretch;gap:4px;padding:0 0 6px;font-size:.72rem;text-align:center}
+  body.three .info>span{padding:3px 6px;border-radius:10px}
+  body.three .panel.sizing .sizer{left:calc(100% + 8px);right:auto;bottom:8px;width:min(330px,52vw)}
 }
 </style>
 </head>
@@ -1256,7 +1301,7 @@ function stadiumHole(hl,hw){ const p=new THREE.Path(), c=hl-hw;
   p.moveTo(-c,-hw); p.absarc(-c,0,hw,Math.PI*1.5,Math.PI/2,true); p.lineTo(c,hw); p.absarc(c,0,hw,Math.PI/2,-Math.PI/2,true); p.lineTo(-c,-hw); return p; }
 let HL=3.3, HW=1.75; const FELT_Y=1.46;
 /* on a phone held upright the table is laid out bigger around the same players, so the felt and the cards fill the screen */
-const tableSize=tall=>{ HL=3.3; HW=tall?2.45:1.75; };   // deeper on an upright phone, to use its height
+const tableSize=tall=>{ HL=3.3; HW=tall?3.0:1.75; };   // deeper on an upright phone, to use its height
 
 function init3DTable(){
   if(T3.ready||T3.failed||!window.THREE) return;
@@ -1683,8 +1728,8 @@ function layout3D(){
   if(land!==T3.land || tall!==T3.built){ T3.land=land; T3.built=tall; tableSize(tall); if(T3.tableG) T3.scene.remove(T3.tableG); T3.tableG=buildTable(land); T3.scene.add(T3.tableG); if(T3.shoeG) T3.scene.remove(T3.shoeG); T3.shoeG=buildShoe(); T3.scene.add(T3.shoeG); placeSeats(); T3.label=''; }
   T3.tall=tall; T3.r.setSize(w,h,false);
   const cam=T3.cam, hero=T3.seatPos[0], T=THREE; cam.aspect=w/h;
-  cam.position.set(0, tall?14:9.6, hero.z+(tall?2.8:4.4));
-  const look=new T.Vector3(0,1.3,tall?0.1:-0.3);
+  cam.position.set(0, tall?14:11.5, hero.z+(tall?2.8:3.6));
+  const look=new T.Vector3(0,1.3,tall?0.1:-0.15);
   /* Framing: the widest shot is not the goal, the closest one is. Take the smallest field of view (and a
      sideways shift) that keeps every head, chair and name plate on screen, clear of the floating bar on
      top and of the floating controls in the corner when those are in use (a phone on its side, 3D). */
@@ -1692,33 +1737,36 @@ function layout3D(){
   let hdrB=0, pan=null;
   if(document.body.classList.contains('three') && getComputedStyle($('panel')).position==='absolute'){
     hdrB=Math.max(0,document.querySelector('.top').getBoundingClientRect().bottom-tr.top-14);
-    const pw=$('panel').getBoundingClientRect().width, ph=Math.min(h*0.6,232);
-    pan={x0:0, x1:pw+4, y0:h-ph, y1:h};                         // the controls sit in the bottom-left corner
+    const pw=$('panel').getBoundingClientRect().width, ph=Math.min(h*0.78,262);   // a narrow column: status, then the buttons; the raise card opens over the table only while it's used
+    pan = tall ? {full:true, x0:0, x1:w, y0:h-150, y1:h}          // upright: a bar along the bottom (buttons and the line above them)
+               : {x0:0, x1:pw+4, y0:h-ph, y1:h};                  // on its side: the controls sit in the bottom-left corner
   }
-  const side=(s,v)=>tall && v && Math.abs(s.nx)>0.5;
-  const plateW=46, plateH=22, plateY=(s,v)=>!v?2.0:((land&&s.nz<-0.5&&!side(s,v))?4.0:1.45);   // across the table: the plate floats above the head
+  // plates on the rail in front of the player: the side seats on an upright phone, the far seats otherwise
+  const side=(s,v)=>v && (tall ? Math.abs(s.nx)>0.5 : s.nz<-0.5);
+  const plateW=46, plateH=22, plateY=(s,v)=>!v?2.0:((land&&s.nz<-0.5&&!side(s,v))?3.55:1.45);   // across the table: the plate floats above the head
   /* upright phone: the side players may run off the edges of the screen (the table is what matters), their
      name plates sit on the rail in front of them */
   const plateAt=(s,v)=>side(s,v)?new T.Vector3(s.ex+s.nx*0.3,plateY(s,v),s.ez+s.nz*0.3):new T.Vector3(s.x,plateY(s,v),s.z);
   const pts=[];
   T3.seatPos.forEach((s,v)=>{
     pts.push({p:new T.Vector3(s.x,3.0,s.z), kind:side(s,v)?'loose':'head'});
-    pts.push({p:plateAt(s,v), kind:'plate', far:land&&v&&s.nz<-0.5&&!side(s,v)});   // a far plate carries shown cards above it
+    pts.push({p:plateAt(s,v), kind:'plate', far:land&&v&&s.nz<-0.5&&!side(s,v), hero:!v});   // a far plate carries shown cards above it
     if(v) pts.push({p:new T.Vector3(s.x,0.3,s.z), kind:side(s,v)?'loose':'foot'});
   });
-  const hitsPanel=(x,y,hw,hh)=>pan && x-hw<pan.x1 && x+hw>pan.x0 && y+hh>pan.y0 && y-hh<pan.y1;
+  const botLim=pan&&pan.full?pan.y0:h;
+  const hitsPanel=(x,y,hw,hh)=>pan && !pan.full && x-hw<pan.x1 && x+hw>pan.x0 && y+hh>pan.y0 && y-hh<pan.y1;
   let chosen=null;
   for(let f=16; f<=85 && !chosen; f++){
     cam.fov=f; cam.clearViewOffset(); cam.lookAt(look); cam.updateProjectionMatrix(); cam.updateMatrixWorld();
-    const sp=pts.map(o=>{ const q=o.p.clone().project(cam); return {x:(q.x+1)/2*w, y:(1-q.y)/2*h, kind:o.kind, far:o.far}; });
-    const ys=sp.map(o=>o.y+(o.kind==='plate'?plateH:0)), yTop=Math.min(...sp.map(o=>o.y-(o.kind==='plate'?plateH+(o.far?46:0):0)));
+    const sp=pts.map(o=>{ const q=o.p.clone().project(cam); return {x:(q.x+1)/2*w, y:(1-q.y)/2*h, kind:o.kind, far:o.far, hero:o.hero}; });
+    const ys=sp.map(o=>o.y+(o.kind==='plate'?plateH+(o.hero&&pan&&pan.full?40:0):0)), yTop=Math.min(...sp.map(o=>o.y-(o.kind==='plate'?plateH+(o.far?46:0):0)));
     const yBot=Math.max(...ys);
-    if(yBot-yTop > h-hdrB*0.45) continue;
-    const dy=(hdrB*0.45+h)/2-(yTop+yBot)/2;                    // centre vertically in the free height
+    if(yBot-yTop > botLim-hdrB*0.45) continue;
+    const dy=(hdrB*0.45+botLim)/2-(yTop+yBot)/2;                    // centre vertically in the free height
     const shifts=pan?[0,0.1,0.2,0.3,0.4,0.5,0.6,0.7].map(k=>k*(pan.x1)):[0];
     for(const dx of shifts){
       const ok=sp.every(o=>{ const x=o.x+dx, y=o.y+dy;
-        if(o.kind==='plate') return x-plateW>=2 && x+plateW<=w-2 && y-plateH-(o.far?46:0)>=hdrB && y+plateH<=h-2 && !hitsPanel(x,y,plateW,plateH);
+        if(o.kind==='plate') return x-plateW>=2 && x+plateW<=w-2 && y-plateH-(o.far?46:0)>=hdrB && y+plateH+(o.hero&&pan&&pan.full?40:0)<=botLim-2 && !hitsPanel(x,y,plateW,plateH);
         if(o.kind==='head') return x>=8 && x<=w-8 && y>=4 && !hitsPanel(x,y,18,18);
         if(o.kind==='loose') return x>=-w*0.09 && x<=w*1.09 && y>=4;
         return x>=0 && x<=w && y<=h+18 && !hitsPanel(x,y,10,4);
@@ -1735,7 +1783,7 @@ function layout3D(){
     stack:T3.seatPos.map((s,v)=>{ if(side(s,v)){ const q=plateAt(s,v), p=pr(q.x,q.y,q.z); return [p[0], p[1]-36/h*100]; }   // just above the name plate
       if(false){ const q=plateAt(s,v), p=pr(q.x,q.y,q.z); return [p[0]+84/w*100, p[1]]; }   // beside the far player's plate
       const b=stackSpot(s); return pr(b.x,FELT_Y+0.5,b.z); }),
-    far:T3.seatPos.map(s=>land&&s.nz<-0.5),
+    far:T3.seatPos.map((s,v)=>land&&s.nz<-0.5&&!side(s,v)),
     dbtn:T3.seatPos.map(s=>pr(s.ex-s.nx*0.55-s.nz*0.6,FELT_Y,s.ez-s.nz*0.55+s.nx*0.6)),
     centre:pr(0,FELT_Y,land?0.45:0.2)
   };
@@ -2399,7 +2447,8 @@ function countPot(to){
   if(to===POTC.target && POTC.shown<to) return;                  // already counting up to it
   if(to<=POTC.shown || matchMedia('(prefers-reduced-motion: reduce)').matches){ POTC.shown=to; POTC.target=to; return; }
   POTC.target=to; const from=POTC.shown, t0=performance.now(); cancelAnimationFrame(POTC.raf);
-  const step=t=>{ const u=Math.min(1,(t-t0)/600), v=Math.round(from+(to-from)*(1-Math.pow(1-u,3))); POTC.shown=v;
+  const step=t=>{ const u=Math.max(0,Math.min(1,(t-t0)/600)),   // a frame's time can be a hair before t0
+    v=Math.round(from+(to-from)*(1-Math.pow(1-u,3))); POTC.shown=v;
     const el=$('potN'); if(el) el.textContent=fmt(v); if(u<1 && POTC.target===to) POTC.raf=requestAnimationFrame(step); };
   POTC.raf=requestAnimationFrame(step);
 }
@@ -2480,7 +2529,7 @@ function render(think){
 
 let raiseVal=0, raiseSeq=-1, PRE=null;
 function renderPanel(){
-  const ctrl=$('ctrl'); $('panel').classList.remove('myturn');
+  const ctrl=$('ctrl'); $('panel').classList.remove('myturn','sizing');
   if(ME<0){ $('handInfo').textContent=''; $('toCallInfo').textContent='';
     ctrl.innerHTML='<div class="waitline">תתיישב בשולחן מהיד הבאה</div>'; return; }
   const me=G.players[ME];
@@ -2553,7 +2602,7 @@ function renderPanel(){
   $('panel').classList.add('myturn');
   // re-renders during the same turn (e.g. a guest receiving a fresh snapshot) keep the chosen size and don't buzz again
   if(raiseSeq!==G.seq){
-    raiseSeq=G.seq; raiseVal=L.minTo;
+    raiseSeq=G.seq; raiseVal=L.minTo; RAISE_OPEN=false;
     const pr=$('panel').getBoundingClientRect(); if(pr.bottom>innerHeight+2) $('panel').scrollIntoView({block:'end',behavior:'smooth'});
     if(navigator.vibrate) try{navigator.vibrate(30);}catch(e){}
   }
@@ -2562,7 +2611,7 @@ function renderPanel(){
   if(L.canRaise && L.maxTo>L.minTo){
     const potTo=Math.min(L.maxTo, G.curBet + potNow + L.toCall), half=Math.min(L.maxTo, G.curBet+Math.round((potNow+L.toCall)/2));
     const stepV=Math.max(1,Math.round(SB/2));
-    html+='<div class="sizer"><div class="presets">'
+    html+='<div class="sizer"><div class="szhead"><span>כמה להעלות?</span><button class="szclose" id="szClose" aria-label="סגירה">×</button></div><div class="presets">'
       +'<button data-v="'+L.minTo+'">מינימום</button>'
       +'<button data-v="'+Math.max(L.minTo,half)+'">½ קופה</button>'
       +'<button data-v="'+Math.max(L.minTo,potTo)+'">קופה</button>'
@@ -2578,6 +2627,7 @@ function renderPanel(){
     +(L.canRaise?'<button class="raise" id="aRaise" title="R / Enter"><span id="rlbl"></span><small class="num" id="rsz">'+fmt(raiseVal)+'</small></button>':'<button class="raise" disabled>העלאה</button>')
     +'</div>';
   ctrl.innerHTML=html;
+  $('panel').classList.toggle('sizing', use3D() && RAISE_OPEN && L.canRaise && L.maxTo>L.minTo);
   const setV=v=>{ v=+v; if(!isFinite(v)) v=raiseVal;
     raiseVal=Math.max(L.minTo,Math.min(L.maxTo,Math.round(v))); const r=$('rng'); if(r) r.value=raiseVal;
     if($('rv')) $('rv').value=fmt(raiseVal);
@@ -2585,7 +2635,8 @@ function renderPanel(){
     if($('rMinus')) $('rMinus').disabled=raiseVal<=L.minTo;
     if($('rPlus')) $('rPlus').disabled=raiseVal>=L.maxTo;
     if($('rlbl')) $('rlbl').textContent = raiseVal>=L.maxAll ? 'אול-אין' : (isBet?'בט':'רייז ל־'); };
-  ctrl.querySelectorAll('.presets button').forEach(b=>b.onclick=()=>setV(b.dataset.v));
+  ctrl.querySelectorAll('.presets button').forEach(b=>b.onclick=()=>{ RAISE_OPEN=true; setV(b.dataset.v); });
+  if($('szClose')) $('szClose').onclick=()=>{ RAISE_OPEN=false; $('panel').classList.remove('sizing'); };
   if($('rng')) $('rng').oninput=e=>setV(e.target.value);
   // − / +: one step per tap, and they keep going while held down
   [['rMinus',-1],['rPlus',1]].forEach(([id,dir])=>{ const b=$(id); if(!b) return;
@@ -2603,8 +2654,12 @@ function renderPanel(){
   if($('aFold')&&L.toCall>0) $('aFold').onclick=()=>act('fold');
   if($('aCall')) $('aCall').onclick=()=>act('call');
   if($('aCheck')) $('aCheck').onclick=()=>act('check');
-  if($('aRaise')) $('aRaise').onclick=()=>act('raise',raiseVal);
+  // in 3D the first tap on raise opens the size card; the second (or a size picked there) commits
+  if($('aRaise')) $('aRaise').onclick=()=>{
+    if(use3D() && L.maxTo>L.minTo && !RAISE_OPEN){ RAISE_OPEN=true; $('panel').classList.add('sizing'); return; }
+    RAISE_OPEN=false; $('panel').classList.remove('sizing'); act('raise',raiseVal); };
 }
+let RAISE_OPEN=false;
 function act(t,v){
   if(G.over||G.acting!==ME) return;
   if(NET==='client'){
