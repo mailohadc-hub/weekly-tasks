@@ -623,6 +623,7 @@ body.three .table{inset:0}
     <p class="statline" id="tsNote"></p>
 
     <div class="row"><span>חפיסה בארבעה צבעים</span><button class="tog" id="fourTog" aria-pressed="true" aria-label="חפיסה בארבעה צבעים"></button></div>
+    <div class="row"><span>צלילים</span><button class="tog" id="soundTog" aria-pressed="true" aria-label="צלילים"></button></div>
     <div class="row"><span>משחק מהיר</span><button class="tog" id="fastTog" aria-pressed="false" aria-label="משחק מהיר"></button></div>
     <div class="row"><span>מעבר אוטומטי ליד הבאה</span><button class="tog" id="autoTog" aria-pressed="true" aria-label="מעבר אוטומטי"></button></div>
     <h3>היסטוריית היד</h3>
@@ -1542,10 +1543,12 @@ function sync3D(){
   syncChips(); syncBoard(); syncShown();
 }
 const lerp=(a,b,k)=>a+(b-a)*k;
+let AV_TMP=null;   // scratch vectors for the animation loop (made once THREE has loaded)
 function animChars(t,dt){
-  const k=1-Math.exp(-dt*8), tmp=new THREE.Vector3();
+  if(!AV_TMP) AV_TMP=[0,1,2,3].map(()=>new THREE.Vector3());
+  const k=1-Math.exp(-dt*8), tmp=AV_TMP[0];
   let target=null;
-  if(G.acting>=0 && T3.chars[G.acting]){ const s=T3.seatPos[view(G.acting)]; target=tmp.set(s.x,2.5,s.z).clone(); }
+  if(G.acting>=0 && T3.chars[G.acting]){ const s=T3.seatPos[view(G.acting)]; target=tmp.set(s.x,2.5,s.z); }
   T3.chars.forEach((ch,i)=>{
     if(!ch) return; const p=G.players[i]; if(!p) return; const st=ch.st, c=ch.cur;
     let P;
@@ -1554,7 +1557,7 @@ function animChars(t,dt){
     for(let j=0;j<2;j++){ c.sh[j]=lerp(c.sh[j],P.sh[j],k); c.sz[j]=lerp(c.sz[j],P.sz[j],k); c.el[j]=lerp(c.el[j],P.el[j],k); }
     c.lean=lerp(c.lean,P.lean,k); c.card=lerp(c.card,P.card||0,k); c.bounce=lerp(c.bounce,P.bounce||0,k);
     let hp=P.hp, hy=0;
-    if(target && i!==G.acting){ const l=ch.root.worldToLocal(target.clone()); hy=Math.max(-0.75,Math.min(0.75,Math.atan2(l.x,l.z))); hp=Math.min(hp,0.1); }
+    if(target && i!==G.acting){ const l=ch.root.worldToLocal(AV_TMP[1].copy(target)); hy=Math.max(-0.75,Math.min(0.75,Math.atan2(l.x,l.z))); hp=Math.min(hp,0.1); }
     hy+=0.08*Math.sin(t*0.7+st.phase);
     if(st.gest==='shake') hy+=0.4*Math.sin(t*13);
     c.hp=lerp(c.hp,hp,k); c.hy=lerp(c.hy,hy,k);
@@ -1580,7 +1583,7 @@ function animChars(t,dt){
       faceMood(ch.face, mood, t-st.blinkAt<0.12, [gy, i===G.acting?0.25:0.05]);
     }
     // cards: on the felt, lifted to peek, dealt in from the centre and thrown back on a fold
-    const n=st.n, centre=ch.root.worldToLocal(new THREE.Vector3(0,FELT_Y+0.02,0)), shoe=ch.root.worldToLocal(shoeSpot().add(new THREE.Vector3(0,0.34,0)));
+    const n=st.n, moving=st.flyDir||st.flyOut, centre=moving?ch.root.worldToLocal(AV_TMP[2].set(0,FELT_Y+0.02,0)):AV_TMP[2], shoe=moving?ch.root.worldToLocal(shoeSpot().add(AV_TMP[3].set(0,0.34,0))):AV_TMP[3];
     const tabled=!!(T3.shown3&&T3.shown3[i]);
     if(st.flyDir<0 && t>st.flyStart+(n-1)*(st.flyStride||0)+0.5) st.flyDir=0;
     if(st.flyOut && t>st.flyStart+0.45) st.gone=true;
@@ -1849,19 +1852,20 @@ function syncShown(){
 }
 
 function later3D(sec,fn){ T3.jobs.push({at:T3.clock+sec, fn}); }
+const CHIP_POOL=[];
 function flyChips(amount,from,to,delay,done,slide){
   const ks=chipBreak(amount,7); if(!ks.length){ if(done) later3D(delay||0,done); return; }
   const still=matchMedia('(prefers-reduced-motion: reduce)').matches;
-  ks.forEach((k,j)=>{ const m=new THREE.Mesh(chipGeo(),chipMat(k)); m.castShadow=true; m.visible=false; T3.scene.add(m);
+  ks.forEach((k,j)=>{ const m=CHIP_POOL.pop()||new THREE.Mesh(chipGeo(),chipMat(k)); m.material=chipMat(k); m.castShadow=true; m.visible=false; T3.scene.add(m);
     const jit=new THREE.Vector3((Math.random()-0.5)*0.12,j*CHIP_H,(Math.random()-0.5)*0.12);
     T3.tweens.push({m, a:from.clone().add(new THREE.Vector3(0,CHIP_H*(j+1),0)), b:to.clone().add(jit), t0:T3.clock+(delay||0)+j*(slide?0.08:0.06),
-      dur:still?0.01:slide?1.05:0.5, h:slide?0.05:0.28, spin:(Math.random()-0.5)*14, done:j===ks.length-1?done:null}); });
+      dur:still?0.01:slide?1.05:0.5, h:slide?0.05:0.28, pool:true, spin:(Math.random()-0.5)*14, done:j===ks.length-1?done:null}); });
 }
 function runTweens(t){
   for(let i=T3.jobs.length-1;i>=0;i--){ const j=T3.jobs[i]; if(t>=j.at){ T3.jobs.splice(i,1); j.fn(); } }
   for(let i=T3.tweens.length-1;i>=0;i--){ const w=T3.tweens[i], u=(t-w.t0)/w.dur;
     if(u<0) continue; w.m.visible=true;
-    if(u>=1){ if(w.keep){ w.m.position.copy(w.b); if(w.rb!=null) w.m.rotation.set(w.rb,0,0); } else T3.scene.remove(w.m);
+    if(u>=1){ if(w.pool && CHIP_POOL.length<60){ T3.scene.remove(w.m); CHIP_POOL.push(w.m); } else if(w.keep){ w.m.position.copy(w.b); if(w.rb!=null) w.m.rotation.set(w.rb,0,0); } else T3.scene.remove(w.m);
       T3.tweens.splice(i,1); if(w.done) w.done(); continue; }
     const e=u*u*(3-2*u); w.m.position.lerpVectors(w.a,w.b,e); w.m.position.y+=w.h*4*u*(1-u);
     if(w.ra!=null) w.m.rotation.set(lerp(w.ra,w.rb,Math.min(1,Math.max(0,(u-0.35)/0.6))),0,0); else w.m.rotation.set(w.spin*u*0.3,w.spin*u,0); }
@@ -2370,7 +2374,7 @@ function render(think){
   if(three){ $('table').style.setProperty('--cx',T3.P.centre[0]+'%'); $('table').style.setProperty('--cy',T3.P.centre[1]+'%'); }
   $('viewBtn').hidden=!T3.ready; $('viewBtn').textContent=three?'2D':'3D';
   $('emoBtn').hidden=ME<0; if(ME<0) $('emoTray').hidden=true;
-  sync3D(); updateEmotes(); chips2D();
+  sync3D(); updateEmotes(); chips2D(); sfxSync();
 
   renderPanel();
   if(NET!=='client'){ $('log').innerHTML=G.log.slice(-40).map(t=>'<div>'+esc(t)+'</div>').join(''); const lg=$('log'); lg.scrollTop=lg.scrollHeight; }
@@ -2471,9 +2475,9 @@ function renderPanel(){
       +'<input class="num amt" id="rv" inputmode="numeric" enterkeyhint="done" autocomplete="off" aria-label="סכום ההעלאה, אפשר להקליד" value="'+fmt(raiseVal)+'"></div></div>';
   }
   html+='<div class="acts">'
-    +(L.toCall>0?'<button class="fold" id="aFold">פולד</button>':'<button class="fold" id="aFold" disabled>פולד</button>')
-    +(L.toCall>0?'<button class="call" id="aCall">'+(L.callAmt>=me.stack?'אול-אין':'קול')+'<small class="num">'+fmt(L.callAmt)+'</small></button>':'<button class="call" id="aCheck">צ\'ק</button>')
-    +(L.canRaise?'<button class="raise" id="aRaise"><span id="rlbl"></span><small class="num" id="rsz">'+fmt(raiseVal)+'</small></button>':'<button class="raise" disabled>העלאה</button>')
+    +(L.toCall>0?'<button class="fold" id="aFold" title="F">פולד</button>':'<button class="fold" id="aFold" disabled>פולד</button>')
+    +(L.toCall>0?'<button class="call" id="aCall" title="C / רווח">'+(L.callAmt>=me.stack?'אול-אין':'קול')+'<small class="num">'+fmt(L.callAmt)+'</small></button>':'<button class="call" id="aCheck" title="C / רווח">צ\'ק</button>')
+    +(L.canRaise?'<button class="raise" id="aRaise" title="R / Enter"><span id="rlbl"></span><small class="num" id="rsz">'+fmt(raiseVal)+'</small></button>':'<button class="raise" disabled>העלאה</button>')
     +'</div>';
   ctrl.innerHTML=html;
   const setV=v=>{ v=+v; if(!isFinite(v)) v=raiseVal;
@@ -2889,7 +2893,7 @@ function syncSheet(){
   $('tsOpts').querySelectorAll('.lv').forEach(b=>b.onclick=()=>{ S.turnSec=+b.dataset.ts; save(); syncSheet(); });
   $('rulesSec').textContent=curTs;
   $('tsNote').textContent = client ? 'את הזמן לפעולה קובע מי שפתח את השולחן.' : 'אם הזמן נגמר: צ\'ק כשאין הימור פתוח, ופולד כשיש. השינוי חל מהתור הבא.';
-  $('fourTog').setAttribute('aria-pressed', S.four); $('fastTog').setAttribute('aria-pressed', S.fast); $('autoTog').setAttribute('aria-pressed', S.auto);
+  $('fourTog').setAttribute('aria-pressed', S.four); $('fastTog').setAttribute('aria-pressed', S.fast); $('soundTog').setAttribute('aria-pressed', S.sound!==false); $('autoTog').setAttribute('aria-pressed', S.auto);
   $('stats').textContent='ידיים ששיחקת: '+fmt(S.hands)+'. ניצחונות: '+fmt(S.won)+'. הקופה הגדולה שלך: '+fmt(S.best)+'. קניות מחדש: '+fmt(S.rebuys)+'.';
   $('nameIn').value=S.name||'';
   $('netNA').hidden=!!room; $('netBox').hidden=!room;
@@ -2924,16 +2928,98 @@ $('sheet').addEventListener('click',e=>{ if(e.target.id==='sheet') $('closeSheet
 document.addEventListener('keydown',e=>{ if(e.key==='Escape' && !$('sheet').hidden) $('closeSheet').click(); });
 $('fourTog').onclick=()=>{ S.four=!S.four; save(); syncSheet(); if(VIEW==='table') render(); };
 $('fastTog').onclick=()=>{ S.fast=!S.fast; save(); syncSheet(); };
+$('soundTog').onclick=()=>{ S.sound=S.sound===false; save(); syncSheet(); sfxInit(); play('chips',0,3); };
 $('autoTog').onclick=()=>{ S.auto=!S.auto; save(); syncSheet(); };
 
 
+/* ---------- sound ----------
+   Every sound is made on the spot with Web Audio (no files): a card sliding off the deck, a card turning
+   over, clay chips, a knock on the rail for a check, a fold, the bell for your turn, the clock, a win.
+   What to play is read from the game state after every change, like the 3D table, so it works the same
+   in solo games, as a host and as a guest. The sound starts on the first tap (browsers require that). */
+const SFX={ctx:null, out:null, noise:null, last:{tk:-1, board:0, bets:[], folded:[], last:[], win:[], shown:[], turn:-1}};
+function sfxInit(){
+  if(SFX.ctx || !(window.AudioContext||window.webkitAudioContext)) return;
+  try{
+    const c=new (window.AudioContext||window.webkitAudioContext)(), out=c.createGain(); out.gain.value=0.55;
+    const comp=c.createDynamicsCompressor(); out.connect(comp); comp.connect(c.destination);
+    const n=c.createBuffer(1,c.sampleRate*0.5,c.sampleRate), d=n.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+    SFX.ctx=c; SFX.out=out; SFX.noise=n;
+  }catch(e){}
+}
+['pointerdown','keydown','touchend'].forEach(ev=>addEventListener(ev,()=>{ sfxInit(); if(SFX.ctx&&SFX.ctx.state==='suspended') SFX.ctx.resume(); },{passive:true}));
+const sfxOn=()=>S.sound!==false && SFX.ctx && SFX.ctx.state==='running' && !document.hidden;
+function burst(t,dur,{f=3000,q=1,type='bandpass',g=0.3,sweep=0}={}){       // filtered noise
+  const c=SFX.ctx, s=c.createBufferSource(), fl=c.createBiquadFilter(), a=c.createGain();
+  s.buffer=SFX.noise; fl.type=type; fl.frequency.setValueAtTime(f,t); if(sweep) fl.frequency.exponentialRampToValueAtTime(Math.max(60,f*sweep),t+dur); fl.Q.value=q;
+  a.gain.setValueAtTime(0.0001,t); a.gain.exponentialRampToValueAtTime(g,t+0.004); a.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  s.connect(fl); fl.connect(a); a.connect(SFX.out); s.start(t,Math.random()*0.3); s.stop(t+dur+0.02);
+}
+function tone(t,f,dur,{g=0.2,type='sine',to=0}={}){
+  const c=SFX.ctx, o=c.createOscillator(), a=c.createGain(); o.type=type; o.frequency.setValueAtTime(f,t); if(to) o.frequency.exponentialRampToValueAtTime(to,t+dur);
+  a.gain.setValueAtTime(0.0001,t); a.gain.exponentialRampToValueAtTime(g,t+0.005); a.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(a); a.connect(SFX.out); o.start(t); o.stop(t+dur+0.02);
+}
+const SND={
+  card:t=>{ burst(t,0.09,{f:2600,q:0.8,g:0.22,sweep:1.8}); burst(t+0.07,0.03,{f:1200,q:1.5,g:0.12}); },
+  flip:t=>{ burst(t,0.025,{f:3500,q:2,g:0.18}); burst(t+0.05,0.03,{f:1800,q:2,g:0.2}); },
+  chips:(t,n)=>{ n=Math.max(1,Math.min(7,n)); for(let k=0;k<n;k++){ const u=t+k*(0.035+Math.random()*0.03), f=2800+Math.random()*1600;
+      tone(u,f,0.05,{g:0.08,type:'triangle',to:f*0.92}); burst(u,0.035,{f:f*1.3,q:4,g:0.12}); } },
+  knock:t=>{ [0,0.16].forEach(d=>{ tone(t+d,140,0.09,{g:0.35,to:90}); burst(t+d,0.05,{f:500,type:'lowpass',g:0.25}); }); },
+  fold:t=>burst(t,0.22,{f:1800,type:'lowpass',q:0.5,g:0.2,sweep:0.3}),
+  turn:t=>{ tone(t,880,0.5,{g:0.12}); tone(t+0.09,1318,0.6,{g:0.09}); },
+  tick:t=>tone(t,1600,0.04,{g:0.08,type:'square'}),
+  win:t=>{ [523,659,784,1047].forEach((f,k)=>tone(t+k*0.09,f,0.45,{g:0.1,type:'triangle'})); SND.chips(t+0.35,7); }
+};
+function play(name,delay,arg){ if(!sfxOn()) return; SND[name](SFX.ctx.currentTime+0.01+(delay||0),arg); }
+function sfxSync(){
+  const L=SFX.last, newHand=L.tk!==G.token;
+  if(newHand){
+    const dealt=G.players.filter(p=>!p.empty && p.hole && p.hole.length).length, hc=G.mode==='omaha'?4:2;
+    if(L.tk!==-1 && dealt && !G.over) for(let k=0;k<Math.min(dealt*hc,24);k++) play('card',0.15+k*0.14);
+    L.board=0; L.bets=[]; L.folded=[]; L.last=[]; L.win=[]; L.shown=[];
+  }
+  if(G.board.length>L.board){ const n=G.board.length-L.board; for(let k=0;k<n;k++){ play('card',k*0.28); play('flip',k*0.28+0.35); } }
+  let chipN=0;
+  G.players.forEach((p,i)=>{
+    if(p.empty) return;
+    const pb=L.bets[i]||0;
+    if(p.bet>pb && !newHand) chipN=Math.max(chipN,chipBreak(p.bet-pb,7).length);
+    if(!newHand && p.bet<pb && !p.bet) play('chips',0.2+0.12*i,3);          // bets swept into the pot
+    if(p.folded && !L.folded[i] && !newHand) play('fold');
+    if(!newHand && p.last!==L.last[i] && /צ'ק/.test(p.last||'')) play('knock');
+    if(p.shown && !L.shown[i] && p.hole && p.hole[0]!=null && !newHand) play('flip');
+    if(p.win && !L.win[i]) i===ME ? play('win',0.5) : play('chips',0.7,6);
+    L.bets[i]=p.bet; L.folded[i]=p.folded; L.last[i]=p.last; L.win[i]=p.win; L.shown[i]=p.shown;
+  });
+  if(chipN) play('chips',0.05,chipN);
+  const mine=ME>=0 && G.acting===ME && !G.over;
+  if(mine && L.turn!==G.seq) play('turn');
+  L.turn=mine?G.seq:-1; L.board=G.board.length; L.tk=G.token;
+}
+
+/* keyboard: the same actions as the buttons, for a computer
+   F fold · C or space check/call · R or Enter raise · arrows change the size */
+document.addEventListener('keydown',e=>{
+  if(VIEW!=='table' || e.ctrlKey || e.metaKey || e.altKey || !$('sheet').hidden) return;
+  const typing=/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) && e.target.type!=='range';
+  if(typing && e.key!=='Enter') return;
+  const k=e.key.toLowerCase(), hit=id=>{ const b=$(id); if(b && !b.disabled){ e.preventDefault(); b.click(); return true; } return false; };
+  if(k==='f'||k==='כ') hit('aFold');
+  else if(k==='c'||k==='ב'||k===' ') hit('aCall')||hit('aCheck')||hit('nextH');
+  else if(k==='r'||k==='ר'||k==='enter') hit('aRaise')||hit('nextH');
+  else if(k==='arrowup'||k==='arrowright') hit('rPlus');
+  else if(k==='arrowdown'||k==='arrowleft') hit('rMinus');
+});
+
 /* turn clock */
-let buzzed=-1;
+let buzzed=-1, ticked=-1;
 function tickClock(){
   const el=$('clock'); if(!el) return;
   if(!G.deadline || G.over || G.acting!==ME){ el.textContent=''; return; }
   const left=Math.max(0,Math.ceil((G.deadline-Date.now())/1000));
   el.textContent=left; el.classList.toggle('low', left<=5);
+  if(left<=5 && left>0 && ticked!==left+':'+G.seq){ ticked=left+':'+G.seq; play('tick'); }
   if(left<=5 && buzzed!==G.seq){ buzzed=G.seq; if(navigator.vibrate) try{navigator.vibrate([60,80,60]);}catch(e){} }
 }
 setInterval(tickClock, 250);
@@ -2951,7 +3037,7 @@ setInterval(nudge, 2000);
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden) setTimeout(nudge,300); });
 
 window.__poker={G,S,doAction,legal,startHand,bestOmaha,bestHold,describe,score5,
-  _net:()=>({NET,ME,myPeer,VIEW}), _t3:()=>T3, _model:model, _pose:pose, enterRoom, leaveTable, _onPeers:onPeers, _setRoom:r=>{room=r;}, _startHosting:startHosting, _join:joinTable};
+  _net:()=>({NET,ME,myPeer,VIEW}), _t3:()=>T3, _model:model, _pose:pose, enterRoom, leaveTable, _onPeers:onPeers, _setRoom:r=>{room=r;}, _startHosting:startHosting, _join:joinTable, _sfx:()=>({SFX,SND})};
 
 checkBroke(); save();
 showView();
