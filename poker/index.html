@@ -412,7 +412,10 @@ body.three .wood{padding:0;background:none;box-shadow:none;border-radius:0}
 body.three .felt{background:none;box-shadow:none;overflow:visible;border-radius:0}
 body.three .center{left:var(--cx,50%);top:var(--cy,47%)}
 body.three .seat:not(.me):not(.shown) .hand{visibility:hidden}
-body.three .board{visibility:hidden}   /* the board is dealt on the felt in 3D */
+body.three .board{visibility:hidden}
+.note3d{position:absolute;left:50%;top:14%;transform:translateX(-50%);z-index:6;padding:6px 14px;border-radius:999px;font-size:13px;
+  background:rgba(12,10,9,.78);color:var(--gold,#E6CF97);border:1px solid rgba(214,184,120,.35);white-space:nowrap;pointer-events:none}
+.note3d[hidden]{display:none}   /* the board is dealt on the felt in 3D */
 body.three .card.slot{box-shadow:none}
 /* your own hand sits beside your name plate, so your character stays in view */
 body.three .seat.me .hand{position:absolute;left:calc(100% + 10px);bottom:-4px;margin:0;min-height:0}
@@ -551,6 +554,7 @@ body.three .table{inset:0}
 
   <div class="tablewrap"><div class="table" id="table">
     <canvas id="scene3d" aria-hidden="true"></canvas>
+    <div class="note3d" id="note3d" role="status" hidden></div>
     <div class="rail"><div class="wood"><div class="felt">
       <div class="feltmark" id="feltmark">No-Limit Hold'em</div>
       <div class="center">
@@ -1199,7 +1203,7 @@ function init3DTable(){
     const sc=new T.Scene(); sc.fog=new T.Fog(0x0B0909,15,32);
     sc.add(new T.HemisphereLight(0xFFF1DC,0x2A1810,0.5));
     const spot=new T.SpotLight(0xFFE7BF,1.6,40,0.72,0.6,1); spot.position.set(0,13,1.5); spot.target.position.set(0,1,0); sc.add(spot,spot.target);
-    spot.castShadow=true; spot.shadow.mapSize.set(2048,2048); spot.shadow.bias=-0.0005; spot.shadow.radius=3; spot.shadow.camera.near=6; spot.shadow.camera.far=18;
+    spot.castShadow=true; T3.spot=spot; spot.shadow.mapSize.set(2048,2048); spot.shadow.bias=-0.0005; spot.shadow.radius=3; spot.shadow.camera.near=6; spot.shadow.camera.far=18;
     sc.environment=roomEnv(T,r);
     const key=new T.DirectionalLight(0xFFF6E8,0.5); key.position.set(-3,8,11); sc.add(key);
     const rim=new T.DirectionalLight(0xE6CF97,0.45); rim.position.set(4,6,-9); sc.add(rim);
@@ -1364,8 +1368,13 @@ async function loadModels(){
   try{
     if(!THREE.GLTFLoader) await loadScript(JSD+'loaders/GLTFLoader.js');
     if(!THREE.SkeletonUtils) await loadScript(JSD+'utils/SkeletonUtils.js');
-    const L=new THREE.GLTFLoader();
-    const got=await Promise.all(Object.entries(GL_FILES).map(([k,u])=>new Promise((ok,no)=>L.load(u,g=>ok([k,g]),undefined,no))));
+    const L=new THREE.GLTFLoader(), prog={};
+    const show=()=>{ const v=Object.values(prog), got=v.reduce((a,p)=>a+p[0],0), all=v.reduce((a,p)=>a+p[1],0);
+      note3d(all?'טוען דמויות… '+Math.min(99,Math.round(got/all*100))+'%':'טוען דמויות…'); };
+    show(); const tick=setInterval(show,500);          // also shows once the player sits down while loading
+    const got=await Promise.all(Object.entries(GL_FILES).map(([k,u])=>new Promise((ok,no)=>L.load(u,g=>ok([k,g]),
+      x=>{ if(x.lengthComputable){ prog[k]=[x.loaded,x.total]; show(); } },no)))).finally(()=>clearInterval(tick));
+    note3d('');
     got.forEach(([k,g])=>{ GL.src[k]=g.scene; });
     GL.ready=true;
     // swap everyone over: seats, portraits and the lobby stage
@@ -1374,7 +1383,7 @@ async function loadModels(){
     AV3.urls.forEach(u=>URL.revokeObjectURL(u)); AV3.urls.clear(); AV3.queue.length=0; STAGE.shown=-1;
     CHARS.forEach((c,i)=>AV3.queue.push([i,''])); pump3D();
     if(VIEW==='table') render(); else renderLobby();
-  }catch(e){ GL.failed=true; }
+  }catch(e){ GL.failed=true; note3d(''); }
 }
 const glKind=c=>c.f?'michelle':'gent';
 /* recolour one garment on the shared texture: the pink wedding suit, or Michelle's yellow trousers */
@@ -1913,16 +1922,27 @@ function flyToken(lay,a,b,amount){
     setTimeout(()=>el.remove(),560+j*50); }
 }
 
+function toast2D(){ const el=$('note3d'); if(!el) return; clearTimeout(note3dT); el.textContent='עברנו לתצוגה שטוחה כדי שהמשחק ירוץ חלק. אפשר לחזור לתלת־ממד בכפתור 3D';
+  el.hidden=false; note3dT=setTimeout(()=>{ el.hidden=true; },6000); }
+/* a short line over the table: loading progress, or why the view changed */
+let note3dT=0;
+function note3d(msg,sec){ const el=$('note3d'); if(!el) return; clearTimeout(note3dT);
+  el.textContent=msg; el.hidden=!msg || VIEW!=='table' || !use3D() && !sec; if(msg && sec) note3dT=setTimeout(()=>{ el.hidden=true; },sec*1000); }
 function loop3D(ts){
   requestAnimationFrame(loop3D);
   if(!use3D() || VIEW!=='table' || document.hidden){ T3.last=ts; return; }
+  const idle=!T3.tweens.length && !T3.jobs.length && !T3.chars.some(c=>c&&(c.st.gest||c.st.flyDir||c.st.flyOut&&!c.st.gone));
+  T3.odd=!T3.odd; if(idle && T3.odd && T3.dpr>=1.25) return;                       // idle: about 30 frames a second is plenty
   const dt=Math.min(0.05,T3.last?(ts-T3.last)/1000:0.016); T3.last=ts; T3.clock=ts/1000;
   animChars(ts/1000,dt); runTweens(ts/1000); T3.r.render(T3.scene,T3.cam);
   // sharpness: full screen resolution unless frames run slow for a while, then one step down at a time
   const f=T3.fps||(T3.fps={n:0,sum:0});
-  if(dt>0 && dt<0.05){ f.n++; f.sum+=dt; }
+  if(dt>0 && dt<0.1 && !idle){ f.n++; f.sum+=dt; }
   if(f.n>=90){ const avg=f.sum/f.n; f.n=0; f.sum=0;
-    if(avg>1/40 && T3.dpr>1.25){ T3.dpr=Math.max(1.25,T3.dpr-0.5); T3.r.setPixelRatio(T3.dpr); if(T3.lastW) T3.r.setSize(T3.lastW,T3.lastH,false); } }
+    if(avg>1/40 && T3.dpr>1.25){ T3.dpr=Math.max(1.25,T3.dpr-0.5); T3.r.setPixelRatio(T3.dpr); if(T3.lastW) T3.r.setSize(T3.lastW,T3.lastH,false); }
+    else if(avg>1/28 && T3.spot && T3.spot.castShadow){ T3.spot.castShadow=false; }                       // then soft shadows go
+    else if(avg>1/20 && !f.gaveUp && !navigator.webdriver){ f.gaveUp=true; S.view3d=false; save(); layout3D(); render();  // then the flat table
+      toast2D(); } }
 }
 /* where the HTML layer goes, in 2D or over the 3D scene */
 const seatXY=v=>use3D()?T3.P.plate[v]:POS[v];
