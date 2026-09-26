@@ -1,7 +1,7 @@
 /* Keeps a copy of the game on the device so it opens instantly and plays offline.
    The page itself is fetched fresh when there is a connection (so updates arrive);
    everything else is served from the cache first. Bump VERSION to replace the cache. */
-const VERSION = 'poker-v13';
+const VERSION = 'poker-v14';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
