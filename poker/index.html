@@ -1187,7 +1187,7 @@ function stadiumHole(hl,hw){ const p=new THREE.Path(), c=hl-hw;
   p.moveTo(-c,-hw); p.absarc(-c,0,hw,Math.PI*1.5,Math.PI/2,true); p.lineTo(c,hw); p.absarc(c,0,hw,Math.PI/2,-Math.PI/2,true); p.lineTo(-c,-hw); return p; }
 let HL=3.3, HW=1.75; const FELT_Y=1.46;
 /* on a phone held upright the table is laid out bigger around the same players, so the felt and the cards fill the screen */
-const tableSize=land=>{ HL=land?3.3:4.15; HW=land?1.75:2.2; };
+const tableSize=tall=>{ HL=3.3; HW=tall?2.45:1.75; };   // deeper on an upright phone, to use its height
 
 function init3DTable(){
   if(T3.ready||T3.failed||!window.THREE) return;
@@ -1595,12 +1595,12 @@ function layout3D(){
   if(!T3.ready) return;
   const el=$('table'), w=el.clientWidth, h=el.clientHeight; if(w<10||h<10) return;
   if(T3.lastW===w && T3.lastH===h && T3.P) return; T3.lastW=w; T3.lastH=h;
-  const land=w/h>1.1;
-  if(land!==T3.land){ T3.land=land; tableSize(land); if(T3.tableG) T3.scene.remove(T3.tableG); T3.tableG=buildTable(land); T3.scene.add(T3.tableG); if(T3.shoeG) T3.scene.remove(T3.shoeG); T3.shoeG=buildShoe(); T3.scene.add(T3.shoeG); placeSeats(); T3.label=''; }
-  T3.r.setSize(w,h,false);
+  const tall=w/h<=1.1, land=true;   // the table always lies across the screen; an upright phone only moves the camera
+  if(land!==T3.land || tall!==T3.built){ T3.land=land; T3.built=tall; tableSize(tall); if(T3.tableG) T3.scene.remove(T3.tableG); T3.tableG=buildTable(land); T3.scene.add(T3.tableG); if(T3.shoeG) T3.scene.remove(T3.shoeG); T3.shoeG=buildShoe(); T3.scene.add(T3.shoeG); placeSeats(); T3.label=''; }
+  T3.tall=tall; T3.r.setSize(w,h,false);
   const cam=T3.cam, hero=T3.seatPos[0], T=THREE; cam.aspect=w/h;
-  cam.position.set(0, land?9.6:13.5, hero.z+(land?4.4:3.4));
-  const look=new T.Vector3(0,1.3,land?-0.3:-0.6);
+  cam.position.set(0, tall?14:9.6, hero.z+(tall?2.8:4.4));
+  const look=new T.Vector3(0,1.3,tall?0.1:-0.3);
   /* Framing: the widest shot is not the goal, the closest one is. Take the smallest field of view (and a
      sideways shift) that keeps every head, chair and name plate on screen, clear of the floating bar on
      top and of the floating controls in the corner when those are in use (a phone on its side, 3D). */
@@ -1611,10 +1611,10 @@ function layout3D(){
     const pw=$('panel').getBoundingClientRect().width, ph=Math.min(h*0.6,232);
     pan={x0:0, x1:pw+4, y0:h-ph, y1:h};                         // the controls sit in the bottom-left corner
   }
-  const plateW=46, plateH=22, plateY=(s,v)=>!v?2.0:((land&&s.nz<-0.5)?4.0:1.45);   // across the table: the plate floats above the head
+  const side=(s,v)=>tall && v && Math.abs(s.nx)>0.5;
+  const plateW=46, plateH=22, plateY=(s,v)=>!v?2.0:((land&&s.nz<-0.5&&!side(s,v))?4.0:1.45);   // across the table: the plate floats above the head
   /* upright phone: the side players may run off the edges of the screen (the table is what matters), their
      name plates sit on the rail in front of them */
-  const side=(s,v)=>!land && v && Math.abs(s.nx)>0.5;
   const plateAt=(s,v)=>side(s,v)?new T.Vector3(s.ex+s.nx*0.3,plateY(s,v),s.ez+s.nz*0.3):new T.Vector3(s.x,plateY(s,v),s.z);
   const pts=[];
   T3.seatPos.forEach((s,v)=>{
@@ -1649,7 +1649,7 @@ function layout3D(){
     head:T3.seatPos.map((s,v)=>{ const q=v?pr(s.x,3.1,s.z):pr(s.x-(land?2.0:1.6),2.4,s.z); q[0]=Math.max(9,Math.min(91,q[0])); return q; }),
     bet:T3.seatPos.map(s=>{ const b=betSpot(s); return pr(b.x,FELT_Y+0.12,b.z); }),
     stack:T3.seatPos.map((s,v)=>{ if(side(s,v)){ const q=plateAt(s,v), p=pr(q.x,q.y,q.z); return [p[0], p[1]-36/h*100]; }   // just above the name plate
-      if(!land && v && s.nz<-0.5){ const q=plateAt(s,v), p=pr(q.x,q.y,q.z); return [p[0]+84/w*100, p[1]]; }   // beside the far player's plate
+      if(false){ const q=plateAt(s,v), p=pr(q.x,q.y,q.z); return [p[0]+84/w*100, p[1]]; }   // beside the far player's plate
       const b=stackSpot(s); return pr(b.x,FELT_Y+0.5,b.z); }),
     far:T3.seatPos.map(s=>land&&s.nz<-0.5),
     dbtn:T3.seatPos.map(s=>pr(s.ex-s.nx*0.55-s.nz*0.6,FELT_Y,s.ez-s.nz*0.55+s.nx*0.6)),
@@ -1733,14 +1733,30 @@ function cardTex(c){
     const g=x.createLinearGradient(0,0,w,h); g.addColorStop(0,'#FFFFFB'); g.addColorStop(0.5,'#FBF7EE'); g.addColorStop(1,'#EFE6D2');
     x.fillStyle=g; x.fillRect(0,0,w,h);
     const pip=(cx,cy,size,flip)=>{ x.save(); x.translate(cx,cy); if(flip) x.rotate(Math.PI); x.scale(size/100,size/100); x.translate(-50,-50); x.fillStyle=ink; x.fill(sp); x.restore(); };
-    /* a big-index face, like the cards in a card room's TV deck: it has to read from across the table on a phone */
-    x.fillStyle=ink; x.textAlign='left'; x.textBaseline='alphabetic';
-    x.font='700 '+(lab==='10'?190:230)+'px "Cormorant Garamond", Georgia, serif';
-    x.save(); x.translate(26,196); if(lab==='10') x.scale(0.8,1); x.fillText(lab,0,0); x.restore();
-    pip(92,262,110,false);
-    if(r>10){ x.strokeStyle='#C9A45C'; x.lineWidth=4; rr(176,36,w-212,h-72,10); x.stroke(); }
-    pip(w-108,h-120,170,false);
-    x.save(); x.translate(w,h); x.rotate(Math.PI); x.font='700 64px "Cormorant Garamond", Georgia, serif'; x.fillText(lab,20,62); x.restore();
+    /* printed like a real deck: an index in two corners, the pips laid out as on the card, framed court cards */
+    const index=()=>{ x.fillStyle=ink; x.font='700 92px "Cormorant Garamond", Georgia, serif'; x.textAlign='center'; x.textBaseline='alphabetic';
+      x.save(); x.translate(48,88); if(lab==='10') x.scale(0.76,1); x.fillText(lab,0,0); x.restore(); pip(48,120,46,false); };
+    index(); x.save(); x.translate(w,h); x.rotate(Math.PI); index(); x.restore();
+    if(r===14){ pip(w/2,h/2,s===0?190:150,false); }
+    else if(r>10){
+      const fx=96, fy=58, fw=w-192, fh=h-116;
+      x.fillStyle='#F6E7BE'; rr(fx,fy,fw,fh,8); x.fill();
+      x.save(); rr(fx,fy,fw,fh,8); x.clip(); x.strokeStyle='rgba(201,164,92,.4)'; x.lineWidth=2;
+      for(let k=-fh;k<fw+fh;k+=12){ x.beginPath(); x.moveTo(fx+k,fy); x.lineTo(fx+k+fh,fy+fh); x.stroke(); }
+      x.restore();
+      x.strokeStyle=ink; x.lineWidth=4; rr(fx,fy,fw,fh,8); x.stroke(); x.strokeStyle='#C9A45C'; x.lineWidth=2; rr(fx+8,fy+8,fw-16,fh-16,6); x.stroke();
+      // a crown for the king and queen, a feather for the jack, over a large letter; mirrored like a court card
+      const half=()=>{ x.fillStyle=ink; x.font='700 150px "Cormorant Garamond", Georgia, serif'; x.textAlign='center'; x.fillText(lab,w/2,h/2-24);
+        x.fillStyle='#C9A45C'; x.strokeStyle=ink; x.lineWidth=3; x.beginPath();
+        if(r>11){ const cx=w/2, cy=fy+44; x.moveTo(cx-44,cy+22); x.lineTo(cx-44,cy-8); x.lineTo(cx-22,cy+6); x.lineTo(cx,cy-20); x.lineTo(cx+22,cy+6); x.lineTo(cx+44,cy-8); x.lineTo(cx+44,cy+22); x.closePath(); }
+        else { const cx=w/2+26, cy=fy+40; x.ellipse(cx,cy,12,34,0.6,0,Math.PI*2); }
+        x.fill(); x.stroke(); pip(fx+36,fy+100,44,false); };
+      half(); x.save(); x.translate(w,h); x.rotate(Math.PI); half(); x.restore();
+      x.strokeStyle='rgba(22,22,26,.35)'; x.lineWidth=2; x.beginPath(); x.moveTo(fx+10,h/2); x.lineTo(fx+fw-10,h/2); x.stroke();
+    } else {
+      const fx=w*0.3, fy=h*0.15, fw=w*0.4, fh=h*0.7;
+      PIPS[r].forEach(([px,py])=>pip(fx+px*fw, fy+py*fh, 64, py>0.5));
+    }
     x.strokeStyle='rgba(70,50,20,.25)'; x.lineWidth=3; rr(1.5,1.5,w-3,h-3,22); x.stroke();
   });
   t.anisotropy=8; CTEX.set(key,t); return t;
@@ -1763,9 +1779,9 @@ function makeCard3D(W){
 function setFace(card,c){ const m=card.userData.face.material; const t=cardTex(c); if(m.map!==t){ m.map=t; m.needsUpdate=true; } }
 const faceUp=-Math.PI/2, faceDown=Math.PI/2;       // rotation.x of a card lying on the felt
 function shoeSpot(){ return T3.land ? feltAt(-1.75,-(HW-0.55)) : feltAt(-(HW-0.6),-HL*0.46); }
-function boardW(){ return T3.land?0.74:0.8; }
+function boardW(){ return T3.tall?0.92:0.74; }
 /* on a phone held upright the board is far from the camera: the cards are larger, nearer, and propped up a little toward the player */
-const boardTilt=()=>T3.land?0:0.3;
+const boardTilt=()=>T3.tall?0.22:0;
 const boardRot=()=>faceUp+boardTilt();
 const boardLift=()=>0.006+Math.sin(boardTilt())*boardW()*0.7;
 function boardSlot(i){ const W=boardW(), gap=W*(T3.land?0.12:0.05), x0=-(5*W+4*gap)/2+W/2; return feltAt(x0+i*(W+gap), T3.land?0.12:0.35); }
