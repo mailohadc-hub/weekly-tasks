@@ -1724,24 +1724,14 @@ function cardTex(c){
     const g=x.createLinearGradient(0,0,w,h); g.addColorStop(0,'#FFFFFB'); g.addColorStop(0.5,'#FBF7EE'); g.addColorStop(1,'#EFE6D2');
     x.fillStyle=g; x.fillRect(0,0,w,h);
     const pip=(cx,cy,size,flip)=>{ x.save(); x.translate(cx,cy); if(flip) x.rotate(Math.PI); x.scale(size/100,size/100); x.translate(-50,-50); x.fillStyle=ink; x.fill(sp); x.restore(); };
-    const index=()=>{ x.fillStyle=ink; x.font='700 100px "Cormorant Garamond", Georgia, serif'; x.textAlign='center'; x.textBaseline='alphabetic';
-      x.save(); x.translate(50,94); if(lab==='10') x.scale(0.78,1); x.fillText(lab,0,0); x.restore(); pip(50,128,50,false); };
-    index(); x.save(); x.translate(w,h); x.rotate(Math.PI); index(); x.restore();
-    if(r===14) pip(w/2,h/2,150,false);
-    else if(r>10){
-      const fx=96, fy=106, fw=w-192, fh=h-212;
-      x.fillStyle='#F6E7BE'; rr(fx,fy,fw,fh,6); x.fill();
-      x.save(); rr(fx,fy,fw,fh,6); x.clip(); x.strokeStyle='rgba(201,164,92,.35)'; x.lineWidth=2;
-      for(let k=-fh;k<fw+fh;k+=12){ x.beginPath(); x.moveTo(fx+k,fy); x.lineTo(fx+k+fh,fy+fh); x.stroke(); }
-      x.strokeStyle='rgba(22,22,26,.35)'; x.beginPath(); x.moveTo(fx,fy); x.lineTo(fx+fw,fy+fh); x.stroke(); x.restore();
-      x.strokeStyle=ink; x.lineWidth=3; rr(fx,fy,fw,fh,6); x.stroke(); x.strokeStyle='#C9A45C'; x.lineWidth=2; rr(fx+6,fy+6,fw-12,fh-12,4); x.stroke();
-      x.fillStyle=ink; x.font='700 120px "Cormorant Garamond", Georgia, serif'; x.textAlign='center';
-      x.fillText(lab,fx+62,fy+124); x.save(); x.translate(fx+fw-62,fy+fh-124); x.rotate(Math.PI); x.fillText(lab,0,0); x.restore();
-      pip(fx+fw-48,fy+52,52,false); pip(fx+48,fy+fh-52,52,true);
-    } else {
-      const fx=w*0.34, fy=h*0.2, fw=w*0.32, fh=h*0.6;
-      PIPS[r].forEach(([px,py])=>pip(fx+px*fw, fy+py*fh, 74, py>0.5));
-    }
+    /* a big-index face, like the cards in a card room's TV deck: it has to read from across the table on a phone */
+    x.fillStyle=ink; x.textAlign='left'; x.textBaseline='alphabetic';
+    x.font='700 '+(lab==='10'?190:230)+'px "Cormorant Garamond", Georgia, serif';
+    x.save(); x.translate(26,196); if(lab==='10') x.scale(0.8,1); x.fillText(lab,0,0); x.restore();
+    pip(92,262,110,false);
+    if(r>10){ x.strokeStyle='#C9A45C'; x.lineWidth=4; rr(176,36,w-212,h-72,10); x.stroke(); }
+    pip(w-108,h-120,170,false);
+    x.save(); x.translate(w,h); x.rotate(Math.PI); x.font='700 64px "Cormorant Garamond", Georgia, serif'; x.fillText(lab,20,62); x.restore();
     x.strokeStyle='rgba(70,50,20,.25)'; x.lineWidth=3; rr(1.5,1.5,w-3,h-3,22); x.stroke();
   });
   t.anisotropy=8; CTEX.set(key,t); return t;
@@ -1764,8 +1754,12 @@ function makeCard3D(W){
 function setFace(card,c){ const m=card.userData.face.material; const t=cardTex(c); if(m.map!==t){ m.map=t; m.needsUpdate=true; } }
 const faceUp=-Math.PI/2, faceDown=Math.PI/2;       // rotation.x of a card lying on the felt
 function shoeSpot(){ return T3.land ? feltAt(-1.75,-(HW-0.55)) : feltAt(-(HW-0.55),-1.55); }
-function boardW(){ return T3.land?0.74:0.6; }
-function boardSlot(i){ const W=boardW(), gap=W*0.12, x0=-(5*W+4*gap)/2+W/2; return feltAt(x0+i*(W+gap), T3.land?0.12:0.05); }
+function boardW(){ return T3.land?0.74:0.66; }
+/* on a phone held upright the board is far from the camera: the cards are larger, nearer, and propped up a little toward the player */
+const boardTilt=()=>T3.land?0:0.38;
+const boardRot=()=>faceUp+boardTilt();
+const boardLift=()=>0.006+Math.sin(boardTilt())*boardW()*0.7;
+function boardSlot(i){ const W=boardW(), gap=W*(T3.land?0.12:0.05), x0=-(5*W+4*gap)/2+W/2; return feltAt(x0+i*(W+gap), T3.land?0.12:0.35); }
 /* the dealer's shoe and discard rack, at the far rail */
 function buildShoe(){
   const g=new THREE.Group(), sp=shoeSpot();
@@ -1792,13 +1786,13 @@ function syncBoard(){
   for(let i=T3.board3.length;i<G.board.length;i++){
     const cd=makeCard3D(boardW()); setFace(cd,G.board[i]); cd.rotation.set(faceDown,0,0); cd.visible=false; T3.scene.add(cd);
     const k=i-T3.board3.length, delay=(G.board.length-T3.board3.length>1)?k*0.28:0;
-    T3.tweens.push({m:cd, a:shoeSpot().add(new THREE.Vector3(0,0.34,0)), b:boardSlot(i).add(new THREE.Vector3(0,0.006,0)), t0:T3.clock+delay, dur:0.55, h:0.35,
-      spin:0, ra:faceDown, rb:faceUp, keep:true});
+    T3.tweens.push({m:cd, a:shoeSpot().add(new THREE.Vector3(0,0.34,0)), b:boardSlot(i).add(new THREE.Vector3(0,boardLift(),0)), t0:T3.clock+delay, dur:0.55, h:0.35,
+      spin:0, ra:faceDown, rb:boardRot(), keep:true});
     T3.board3.push(cd);
   }
   const hl=new Set(G.over&&G.results&&G.results.hl?G.results.hl:[]), dim=G.over&&G.results;
   T3.board3.forEach((cd,i)=>{ const m=cd.userData.face.material; const want=dim&&!hl.has(G.board[i])?0.45:1;
-    if(m.color.r!==want){ m.color.setScalar(want); } cd.position.y=boardSlot(i).y+0.006+(dim&&hl.has(G.board[i])?0.02:0); });
+    if(m.color.r!==want){ m.color.setScalar(want); } if(!T3.tweens.some(w=>w.m===cd)) cd.position.y=boardSlot(i).y+boardLift()+(dim&&hl.has(G.board[i])?0.02:0); });
 }
 
 /* showdown: a player's cards are tabled face up in front of them, turned toward the rail so everyone can read them */
