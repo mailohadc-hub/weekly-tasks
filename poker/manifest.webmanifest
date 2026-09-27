@@ -8,7 +8,7 @@
   "scope": "./",
   "display": "fullscreen",
   "display_override": ["fullscreen", "standalone"],
-  "orientation": "any",
+  "orientation": "landscape",
   "background_color": "#0A0C0B",
   "theme_color": "#0A0C0B",
   "icons": [
