@@ -617,6 +617,31 @@ body.three .szhead{display:flex;align-items:center;justify-content:space-between
   body.three .info>span{padding:3px 6px;border-radius:10px}
   body.three .panel.sizing .sizer{left:calc(100% + 8px);right:auto;bottom:8px;width:min(330px,52vw)}
 }
+
+/* at the table the wallet stays out of sight (your stack is on your plate) */
+.app .top .bank{display:none}
+/* 3D: the top bar tucks away during play; the small button brings it back for a few seconds */
+.peek{display:none}
+body.three .peek{display:grid;place-items:center;position:fixed;z-index:32;top:max(8px,var(--safeT));right:max(10px,env(safe-area-inset-right,0px));width:38px;height:38px;border-radius:10px;
+  background:rgba(10,9,8,.55);border:1px solid rgba(214,184,120,.25);color:var(--ink);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+body.three .peek svg{width:18px;height:18px;stroke:currentColor;stroke-width:1.8;fill:none;stroke-linecap:round}
+body.three .top{transition:transform .25s ease,opacity .25s ease}
+body.three:not(.topshow) .top{transform:translateY(-110%);opacity:0;pointer-events:none}
+body.three.topshow .peek{opacity:0;pointer-events:none}
+/* the tournament prize: a small tag in the corner, the middle of the far side is the dealer's */
+body.three .tbadge{top:max(8px,var(--safeT));left:max(10px,env(safe-area-inset-left,0px));transform:none;padding:3px 10px}
+body.three .tbadge b{font-size:.9rem}
+/* the game is laid out for a phone on its side */
+.rotate{display:none}
+@media (orientation:portrait) and (max-width:900px){
+  body.three:not(.rotok) .rotate{display:flex;position:fixed;inset:0;z-index:80;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;text-align:center;
+    background:rgba(6,5,5,.92);color:var(--ink)}
+}
+.rotate svg{width:74px;height:74px;stroke:var(--gold);stroke-width:1.4;fill:none;animation:rot 2.4s ease-in-out infinite}
+@keyframes rot{0%,20%{transform:rotate(0)}50%,80%{transform:rotate(-90deg)}100%{transform:rotate(0)}}
+@media (prefers-reduced-motion:reduce){ .rotate svg{animation:none} }
+.rotate b{font-size:1.15rem;font-weight:500}.rotate small{color:var(--muted);font-size:.85rem}
+.rotate button{margin-top:6px;padding:10px 18px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--muted);font:inherit}
 </style>
 </head>
 <body class="four">
@@ -652,6 +677,7 @@ body.three .szhead{display:flex;align-items:center;justify-content:space-between
  </div>
 </main>
 
+<div class="rotate" id="rotate" role="dialog" aria-label="סובב את הטלפון"><svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M11 18.5h2"/></svg><b>סובבו את הטלפון לרוחב</b><small>השולחן בנוי לטלפון מאוזן: רואים הכול גדול יותר</small><button id="rotOk">להמשיך לאורך</button></div>
 <div class="app" id="app" hidden>
   <header class="top">
     <button class="iconb" id="leaveBtn" aria-label="חזרה ללובי"><svg viewBox="0 0 24 24"><path d="M14 6l6 6-6 6M20 12H4"/></svg></button>
@@ -676,6 +702,7 @@ body.three .szhead{display:flex;align-items:center;justify-content:space-between
     <div id="emoLayer" aria-live="polite"></div>
   </div>
   <div class="tbadge" id="tbadge" hidden></div>
+  <button class="peek" id="peekBtn" aria-label="הצגת סרגל העליון" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   <button class="emobtn" id="emoBtn" aria-label="תגובות" aria-expanded="false" hidden>😊</button>
   <div class="emotray" id="emoTray" role="group" aria-label="שליחת תגובה" hidden></div>
   </div>
@@ -1394,18 +1421,21 @@ function buildTable(land){
   return g;
 }
 function sdTable(x,z){ let a=x,b=z; if(!T3.land){ a=z; b=x; } const px=Math.max(Math.abs(a)-(HL-HW),0); return Math.hypot(px,b)-HW; }
+const SEAT_DEG=[90,145,192,246,294,348];
 function placeSeats(){
   const ax=T3.land?HL:HW, az=T3.land?HW:HL, e=0.01;
-  T3.seatPos=[0,1,2,3,4,5].map(v=>{
-    const th=Math.PI/2+v*Math.PI/3; let dx=Math.cos(th)*ax, dz=Math.sin(th)*az; const L=Math.hypot(dx,dz); dx/=L; dz/=L;
+  const at=deg=>{
+    const th=deg*Math.PI/180; let dx=Math.cos(th)*ax, dz=Math.sin(th)*az; const L=Math.hypot(dx,dz); dx/=L; dz/=L;
     let t=0; while(sdTable(dx*t,dz*t)<0 && t<20) t+=0.01;
     const ex=dx*t, ez=dz*t;
     let nx=sdTable(ex+e,ez)-sdTable(ex-e,ez), nz=sdTable(ex,ez+e)-sdTable(ex,ez-e); const nl=Math.hypot(nx,nz)||1; nx/=nl; nz/=nl;
     return {x:ex+nx*1.05, z:ez+nz*1.05, ex, ez, nx, nz, yaw:Math.atan2(-nx,-nz)};
-  });
+  };
+  // you at the near side; the others around the ends and the far corners; the dealer in the middle of the far side
+  T3.seatPos=SEAT_DEG.map(at); T3.dealerPos=at(270);
   if(T3.chairs) T3.scene.remove(T3.chairs);
   T3.chairs=new THREE.Group();
-  T3.seatPos.forEach(s=>{ const ch=chair(); ch.position.set(s.x,0,s.z); ch.rotation.y=s.yaw; T3.chairs.add(ch); });
+  T3.seatPos.concat([T3.dealerPos]).forEach(s=>{ const ch=chair(); ch.position.set(s.x,0,s.z); ch.rotation.y=s.yaw; T3.chairs.add(ch); });
   T3.scene.add(T3.chairs);
   resetChips();          // the seats moved: stacks are laid out again on the next sync
 }
@@ -1496,7 +1526,7 @@ async function loadModels(){
       g.scene.traverse(o=>{ if(o.isMesh) [].concat(o.material).forEach(m=>['map','normalMap','roughnessMap','metalnessMap'].forEach(t=>{ if(m[t]){ m[t].anisotropy=T3.maxAniso||8; m[t].needsUpdate=true; } })); }); });
     GL.ready=true;
     // swap everyone over: seats, portraits and the lobby stage
-    T3.chars.forEach(ch=>{ if(ch) T3.scene.remove(ch.root); }); T3.chars=[]; T3.prev.length=0;
+    T3.chars.forEach(ch=>{ if(ch) T3.scene.remove(ch.root); }); T3.chars=[]; T3.prev.length=0; if(T3.dealer){ T3.scene.remove(T3.dealer.root); T3.dealer=null; }
     AV3.models.forEach(m=>{ if(m.g.parent) m.g.parent.remove(m.g); }); AV3.models.clear();
     AV3.urls.forEach(u=>URL.revokeObjectURL(u)); AV3.urls.clear(); AV3.queue.length=0; STAGE.shown=-1;
     CHARS.forEach((c,i)=>AV3.queue.push([i,''])); pump3D();
@@ -1521,8 +1551,8 @@ function findBones(o){
   o.traverse(x=>{ if(!x.isBone) return; for(const w of want) if(new RegExp('(^|[^A-Za-z])'+w+'$|^mixamorig'+w+'$').test(x.name) && !b[w]) b[w]=x; });
   return b;
 }
-function seatedCharGL(ci){
-  const T=THREE, c=CHARS[avIdx(ci)], kind=glKind(c), root=new T.Group();
+function seatedCharGL(ci,cc){
+  const T=THREE, c=cc||CHARS[avIdx(ci)], kind=glKind(c), root=new T.Group();
   const model=THREE.SkeletonUtils.clone(GL.src[kind]); root.add(model);
   const morphs=[];
   model.traverse(o=>{
@@ -1607,6 +1637,8 @@ function faceGL(ch,mood){
 }
 
 const POSE={
+  deal:{sh:[-0.8,-1.25],sz:[0.12,0.02],el:[-0.9,-0.35],lean:0.12,hp:0.3,card:0},
+  push:{sh:[-1.25,-1.25],sz:[0.25,-0.25],el:[-0.3,-0.3],lean:0.2,hp:0.35,card:0},
   rest:{sh:[-0.75,-0.75],sz:[0.12,-0.12],el:[-0.82,-0.82],lean:0,hp:0.14,card:0},
   hold:{sh:[-0.55,-0.55],sz:[0.4,-0.4],el:[-1.45,-1.45],lean:0.06,hp:0.36,card:1},
   lap:{sh:[-0.25,-0.25],sz:[0.12,-0.12],el:[-0.9,-0.9],lean:-0.14,hp:0.05,card:0},
@@ -1657,9 +1689,41 @@ function sync3D(){
       lost:!!(G.over && p.shown && !p.win && !p.folded && G.results)};
   });
   for(let i=G.players.length;i<T3.chars.length;i++) if(T3.chars[i]){ T3.scene.remove(T3.chars[i].root); T3.chars[i]=null; }
-  syncChips(); syncBoard(); syncShown();
+  syncChips(); syncBoard(); syncShown(); syncDealer();
 }
 const lerp=(a,b,k)=>a+(b-a)*k;
+const DEALER_C={n:'דילרית', eye:'dark', skin:1, hair:'long', hc:'#1E1612', acc:'', top:'vest', tc:'#121214', tie:'#121214', bg:'#222', f:1};   // the house dealer, in black
+function dealerGesture(g,sec){ const d=T3.dealer; if(!d) return; d.st.gest=g; d.st.gestEnd=T3.clock+sec; }
+function syncDealer(){
+  const want=!!(GL.ready&&GL.src.michelle);
+  if(!T3.dealer || !!T3.dealer.gl!==want){ if(T3.dealer) T3.scene.remove(T3.dealer.root);
+    T3.dealer = want ? seatedCharGL(0,DEALER_C) : seatedChar(0); T3.scene.add(T3.dealer.root); }
+  const d=T3.dealerPos; if(d){ T3.dealer.root.position.set(d.x,0,d.z); T3.dealer.root.rotation.y=d.yaw; }
+  // a new hand: he deals round the table; each new street: he burns and turns; a pot won: he pushes it over
+  const dealt=G.players.filter(p=>!p.empty && p.hole && p.hole.length).length;
+  if(T3.dealTk!==G.token && dealt && !G.over){ T3.dealTk=G.token; dealerGesture('deal',0.4+dealt*(G.mode==='omaha'?4:2)*0.14); }
+  if(G.board.length>(T3.dealBoard||0) && !G.over) dealerGesture('deal',0.5+(G.board.length-(T3.dealBoard||0))*0.28);
+  if(T3.dealTk===G.token) T3.dealBoard=G.board.length; else T3.dealBoard=0;
+  const won=G.players.some(p=>p.win>0);
+  if(won && T3.pushTk!==G.token){ T3.pushTk=G.token; dealerGesture('push',1.3); }
+}
+function animDealer(t,dt){
+  const ch=T3.dealer; if(!ch) return; const st=ch.st, c=ch.cur, k=1-Math.exp(-dt*7);
+  if(st.gest && t>=st.gestEnd) st.gest=null;
+  const P=st.gest?POSE[st.gest]:POSE.rest;
+  for(let j=0;j<2;j++){ c.sh[j]=lerp(c.sh[j],P.sh[j],k); c.sz[j]=lerp(c.sz[j],P.sz[j],k); c.el[j]=lerp(c.el[j],P.el[j],k); }
+  c.lean=lerp(c.lean,P.lean,k);
+  let hy=0, hp=P.hp;                                   // he watches whoever is to act
+  if(G.acting>=0 && T3.seatPos[view(G.acting)]){ const s=T3.seatPos[view(G.acting)], l=ch.root.worldToLocal(new THREE.Vector3(s.x,2.5,s.z)); hy=Math.max(-0.8,Math.min(0.8,Math.atan2(l.x,l.z))); hp=0.12; }
+  c.hy=lerp(c.hy,hy+0.05*Math.sin(t*0.6),k); c.hp=lerp(c.hp,hp,k);
+  const el1=c.el[1]+(st.gest==='deal'?-0.4*Math.max(0,Math.sin(t*14)):0);   // one flick of the wrist per card
+  if(ch.gl){ poseGL(ch,{lean:c.lean+0.01*Math.sin(t*2), hp:c.hp, hy:c.hy, tilt:0, sh:c.sh, sz:c.sz, el:[c.el[0],el1], gaze:[0,0.1]}); faceGL(ch,''); }
+  else { ch.spine.rotation.x=c.lean; ch.neck.rotation.set(c.hp,c.hy,0);
+    ch.arms[0].sh.rotation.set(c.sh[0],0,c.sz[0]); ch.arms[0].el.rotation.x=c.el[0];
+    ch.arms[1].sh.rotation.set(c.sh[1],0,c.sz[1]); ch.arms[1].el.rotation.x=el1;
+    if(t>st.blinkAt+0.13 && Math.random()<dt*0.35) st.blinkAt=t; faceMood(ch.face,'',t-st.blinkAt<0.12,[0,0.1]); }
+  ch.cards.forEach(m=>m.visible=false);
+}
 let AV_TMP=null;   // scratch vectors for the animation loop (made once THREE has loaded)
 function animChars(t,dt){
   if(!AV_TMP) AV_TMP=[0,1,2,3].map(()=>new THREE.Vector3());
@@ -1728,8 +1792,8 @@ function layout3D(){
   if(land!==T3.land || tall!==T3.built){ T3.land=land; T3.built=tall; tableSize(tall); if(T3.tableG) T3.scene.remove(T3.tableG); T3.tableG=buildTable(land); T3.scene.add(T3.tableG); if(T3.shoeG) T3.scene.remove(T3.shoeG); T3.shoeG=buildShoe(); T3.scene.add(T3.shoeG); placeSeats(); T3.label=''; }
   T3.tall=tall; T3.r.setSize(w,h,false);
   const cam=T3.cam, hero=T3.seatPos[0], T=THREE; cam.aspect=w/h;
-  cam.position.set(0, tall?14:11.5, hero.z+(tall?2.8:3.6));
-  const look=new T.Vector3(0,1.3,tall?0.1:-0.15);
+  cam.position.set(0, tall?14:16, tall?hero.z+2.8:2.6);
+  const look=new T.Vector3(0,1.3,tall?0.1:0.25);
   /* Framing: the widest shot is not the goal, the closest one is. Take the smallest field of view (and a
      sideways shift) that keeps every head, chair and name plate on screen, clear of the floating bar on
      top and of the floating controls in the corner when those are in use (a phone on its side, 3D). */
@@ -1748,6 +1812,7 @@ function layout3D(){
      name plates sit on the rail in front of them */
   const plateAt=(s,v)=>side(s,v)?new T.Vector3(s.ex+s.nx*0.3,plateY(s,v),s.ez+s.nz*0.3):new T.Vector3(s.x,plateY(s,v),s.z);
   const pts=[];
+  if(T3.dealerPos) pts.push({p:new T.Vector3(T3.dealerPos.x,3.0,T3.dealerPos.z), kind:'head'});
   T3.seatPos.forEach((s,v)=>{
     pts.push({p:new T.Vector3(s.x,3.0,s.z), kind:side(s,v)?'loose':'head'});
     pts.push({p:plateAt(s,v), kind:'plate', far:land&&v&&s.nz<-0.5&&!side(s,v), hero:!v});   // a far plate carries shown cards above it
@@ -1912,7 +1977,8 @@ function makeCard3D(W){
 }
 function setFace(card,c){ const m=card.userData.face.material; const t=cardTex(c); if(m.map!==t){ m.map=t; m.needsUpdate=true; } }
 const faceUp=-Math.PI/2, faceDown=Math.PI/2;       // rotation.x of a card lying on the felt
-function shoeSpot(){ return T3.land ? feltAt(-1.75,-(HW-0.55)) : feltAt(-(HW-0.6),-HL*0.46); }
+function shoeSpot(){ return T3.land ? feltAt(-1.3,-(HW-0.5)) : feltAt(-(HW-0.6),-HL*0.46); }
+function rackSpot(){ return T3.land ? feltAt(1.3,-(HW-0.5)) : feltAt(-(HW-0.6),-HL*0.46+0.95); }
 function boardW(){ return T3.tall?0.92:0.74; }
 /* on a phone held upright the board is far from the camera: the cards are larger, nearer, and propped up a little toward the player */
 const boardTilt=()=>T3.tall?0.22:0;
@@ -1923,14 +1989,20 @@ function boardSlot(i){ const W=boardW(), gap=W*(T3.land?0.12:0.05), x0=-(5*W+4*g
 function buildShoe(){
   const g=new THREE.Group(), sp=shoeSpot();
   const wood=mat('#2A1A10',0.45), dark=mat('#0E0E10',0.3,0.2), brass=mat('#C9A45C',0.3,1);
-  mesh(g,rbox(0.62,0.3,0.9,0.05),wood,[0,0.15,0]); mesh(g,box(0.5,0.02,0.7),dark,[0,0.305,0.02]);
-  mesh(g,box(0.46,0.18,0.02),mat('#6E1322',0.5),[0,0.2,0.46],null,[-0.35,0,0]);            // the top card, peeking out
-  mesh(g,box(0.64,0.03,0.04),brass,[0,0.3,0.46]);
-  const rack=new THREE.Group(); rack.position.set(0.95,0,0);
+  const shoe=new THREE.Group(); g.add(shoe); shoe.rotation.y=T3.land?0.2:Math.PI/2+0.2;
+  mesh(shoe,rbox(0.62,0.3,0.9,0.05),wood,[0,0.15,0]); mesh(shoe,box(0.5,0.02,0.7),dark,[0,0.305,0.02]);
+  mesh(shoe,box(0.46,0.18,0.02),mat('#6E1322',0.5),[0,0.2,0.46],null,[-0.35,0,0]);            // the top card, peeking out
+  mesh(shoe,box(0.64,0.03,0.04),brass,[0,0.3,0.46]);
+  const rack=new THREE.Group(); rack.position.copy(rackSpot().sub(sp)); rack.rotation.y=T3.land?0:-Math.PI/2;
   mesh(rack,rbox(0.5,0.12,0.72,0.03),wood,[0,0.06,0]);
   for(let k=0;k<5;k++) mesh(rack,box(0.4,0.006,0.56),mat(k%2?'#F3EEE2':'#6E1322',0.5),[0,0.125+k*0.006,0],null,[0,(k-2)*0.05,0]);
   g.add(rack);
-  g.position.copy(sp); g.rotation.y=T3.land?0.25:Math.PI/2+0.25;
+  // the dealer's chip tray, set into the rail in front of her: columns of chips by value
+  if(T3.land){ const tray=new THREE.Group(); tray.position.copy(feltAt(0,-(HW-0.32)).sub(sp)); g.add(tray);
+    mesh(tray,rbox(1.5,0.1,0.4,0.03),mat('#0E0B09',0.35,0.2),[0,0.05,0]); mesh(tray,box(1.42,0.012,0.34),brass,[0,0.1,0]);
+    [3,5,4,6,4,5,3].forEach((k,i)=>{ for(let j=0;j<9;j++){ const m=new THREE.Mesh(chipGeo(),chipMat(k)); m.rotation.z=Math.PI/2;
+      m.position.set(-0.6+i*0.2,0.2,-0.12+j*CHIP_H*1.02); m.rotation.x=0; m.rotation.y=Math.PI/2; tray.add(m); } }); }
+  g.position.copy(sp);
   g.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; } });
   return g;
 }
@@ -1938,7 +2010,7 @@ function buildShoe(){
 function syncBoard(){
   if(!T3.board3) T3.board3=[];
   if(T3.boardTk!==G.token){
-    T3.board3.forEach(cd=>{ const from=cd.position.clone(), to=shoeSpot().add(new THREE.Vector3(0.95,0.14,0));
+    T3.board3.forEach(cd=>{ const from=cd.position.clone(), to=rackSpot().add(new THREE.Vector3(0,0.14,0));
       T3.tweens.push({m:cd, a:from, b:to, t0:T3.clock, dur:0.5, h:0.25, spin:0, ra:cd.rotation.x, rb:faceDown, done:()=>T3.scene.remove(cd), keep:true}); });
     T3.board3=[]; T3.boardTk=G.token;
   }
@@ -2058,7 +2130,7 @@ function loop3D(ts){
   const idle=!T3.tweens.length && !T3.jobs.length && !T3.chars.some(c=>c&&(c.st.gest||c.st.flyDir||c.st.flyOut&&!c.st.gone));
   T3.odd=!T3.odd; if(idle && T3.odd && T3.dpr>=1.25) return;                       // idle: about 30 frames a second is plenty
   const dt=Math.min(0.05,T3.last?(ts-T3.last)/1000:0.016); T3.last=ts; T3.clock=ts/1000;
-  animChars(ts/1000,dt); runTweens(ts/1000); T3.r.render(T3.scene,T3.cam);
+  animChars(ts/1000,dt); animDealer(ts/1000,dt); runTweens(ts/1000); T3.r.render(T3.scene,T3.cam);
   // sharpness: full screen resolution unless frames run slow for a while, then one step down at a time
   const f=T3.fps||(T3.fps={n:0,sum:0});
   if(dt>0 && dt<0.1 && !idle){ f.n++; f.sum+=dt; }
@@ -2659,7 +2731,13 @@ function renderPanel(){
     if(use3D() && L.maxTo>L.minTo && !RAISE_OPEN){ RAISE_OPEN=true; $('panel').classList.add('sizing'); return; }
     RAISE_OPEN=false; $('panel').classList.remove('sizing'); act('raise',raiseVal); };
 }
-let RAISE_OPEN=false;
+let RAISE_OPEN=false, topT=0;
+function showTop(){ document.body.classList.add('topshow'); $('peekBtn').setAttribute('aria-expanded','true'); clearTimeout(topT);
+  topT=setTimeout(()=>{ document.body.classList.remove('topshow'); $('peekBtn').setAttribute('aria-expanded','false'); },5000); }
+$('peekBtn').onclick=showTop;
+$('rotOk').onclick=()=>{ document.body.classList.add('rotok'); };
+// an installed copy, full screen: hold the phone on its side where the browser allows it
+try{ if(screen.orientation && screen.orientation.lock && matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches) screen.orientation.lock('landscape').catch(()=>{}); }catch(e){}
 function act(t,v){
   if(G.over||G.acting!==ME) return;
   if(NET==='client'){
